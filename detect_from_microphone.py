@@ -51,13 +51,6 @@ if __name__ == "__main__":
         # Feed to openWakeWord model
         prediction = owwModel.predict(audio)
 
-        # Column titles
-        n_spaces = 16
-        output_string_header = """
-            Model Name         | Score | Wakeword Status
-            --------------------------------------
-            """
-
         for mdl in owwModel.prediction_buffer.keys():
             # Add scores in formatted table
             scores = list(owwModel.prediction_buffer[mdl])
@@ -68,9 +61,3 @@ if __name__ == "__main__":
             if curr_score > 0.3:
                 current_time = datetime.now()
                 print(current_time.strftime("%H:%M:%S"), curr_score)
-        #     output_string_header += f"""{mdl}{" "*(n_spaces - len(mdl))}   | {curr_score[0:5]} | {"--"+" "*20 if scores[-1] <= 0.5 else "Wakeword Detected!"}
-        #     """
-        #
-        # # Print results table
-        # print("\033[F"*(4*n_models+1))
-        # print(output_string_header, "                             ", end='\r')

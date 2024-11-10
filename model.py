@@ -7,17 +7,6 @@ from typing import List, DefaultDict
 import numpy as np
 from utils import AudioFeatures
 
-model_class_mappings = {  # TODO remove or replace by Hugo's values
-    "timer": {
-        "1": "1_minute_timer",
-        "2": "5_minute_timer",
-        "3": "10_minute_timer",
-        "4": "20_minute_timer",
-        "5": "30_minute_timer",
-        "6": "1_hour_timer"
-    }
-}
-
 # Define main model class
 class Model:
     """
@@ -27,9 +16,7 @@ class Model:
 
     def __init__(
             self,
-            wakeword_models: List[str] = [],
-            class_mapping_dicts: List[dict] = [],
-            inference_framework: str = "tflite",
+            wakeword_models: List[str],
             **kwargs
     ):
         """Initialize the openWakeWord model object.
@@ -38,13 +25,9 @@ class Model:
             wakeword_models (List[str]): A list of paths of ONNX/tflite models to load into the openWakeWord model object.
                                               If not provided, will load all of the pre-trained models. Alternatively,
                                               just the names of pre-trained models can be provided to select a subset of models.
-            class_mapping_dicts (List[dict]): A list of dictionaries with integer to string class mappings for
-                                              each model in the `wakeword_models` arguments
-                                              (e.g., {"0": "class_1", "1": "class_2"})
             kwargs (dict): Any other keyword arguments to pass the the preprocessor instance
         """
         # Get model paths for pre-trained models if user doesn't provide models to load
-        # pretrained_model_paths = openwakeword.get_pretrained_model_paths(inference_framework)
         wakeword_model_names = []
 
         for ndx, i in enumerate(wakeword_models):
@@ -88,12 +71,7 @@ class Model:
             pred_function = functools.partial(onnx_predict, self.models[mdl_name])
             self.model_prediction_function[mdl_name] = pred_function
 
-            if class_mapping_dicts and class_mapping_dicts[wakeword_models.index(mdl_path)].get(mdl_name, None):
-                self.class_mapping[mdl_name] = class_mapping_dicts[wakeword_models.index(mdl_path)]
-            elif model_class_mappings.get(mdl_name, None):
-                self.class_mapping[mdl_name] = model_class_mappings[mdl_name]
-            else:
-                self.class_mapping[mdl_name] = {str(i): str(i) for i in range(0, self.model_outputs[mdl_name])}
+            self.class_mapping[mdl_name] = {str(i): str(i) for i in range(0, self.model_outputs[mdl_name])}
             print(f"Model {mdl_name} loaded")
 
         # Create buffer to store frame predictions
