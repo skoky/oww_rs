@@ -141,7 +141,7 @@ class AudioFeatures:
         processed_samples = 0
 
         if self.raw_data_remainder.shape[0] != 0:
-            print('raw_data_remainder.shape[0] != 0')
+            # print('raw_data_remainder.shape[0] != 0')
             x = np.concatenate((self.raw_data_remainder, x))
             self.raw_data_remainder = np.empty(0)
 
@@ -158,7 +158,7 @@ class AudioFeatures:
                 self.accumulated_samples += x.shape[0]
                 self.raw_data_remainder = np.empty(0)
         else:
-            print('sample < CHUNK')
+            # print('sample < CHUNK')
             self.accumulated_samples += x.shape[0]
             self._buffer_raw_data(x)
 

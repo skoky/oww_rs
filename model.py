@@ -102,8 +102,8 @@ class Model:
         predictions = {}
         for mdl in self.models.keys():  # always 1 for Hugo
             n_prepared_samples = self.preprocessor(x)
-            if n_prepared_samples != CHUNK:
-                print(f"N samples wrong: {n_prepared_samples}")
+            # if n_prepared_samples != CHUNK:
+            #     print(f"N samples wrong: {n_prepared_samples}")
 
             ##  this
             prediction = self.model_prediction_function[mdl](
