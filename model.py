@@ -5,7 +5,8 @@ from functools import partial
 from typing import List, DefaultDict
 
 import numpy as np
-from utils import AudioFeatures
+from utils import AudioFeatures, CHUNK
+
 
 # Define main model class
 class Model:
@@ -87,7 +88,7 @@ class Model:
 
         Args:
             x (ndarray): The input audio data to predict on with the models. Ideally should be multiples of 80 ms
-                                (1280 samples), with longer lengths reducing overall CPU usage
+                                (CHUNK/1280 samples), with longer lengths reducing overall CPU usage
                                 but decreasing detection latency. Input audio with durations greater than or less
                                 than 80 ms is also supported, though this will add a detection delay of up to 80 ms
 
@@ -101,7 +102,7 @@ class Model:
         predictions = {}
         for mdl in self.models.keys():  # always 1 for Hugo
             n_prepared_samples = self.preprocessor(x)
-            if n_prepared_samples != 1280:
+            if n_prepared_samples != CHUNK:
                 print(f"N samples wrong: {n_prepared_samples}")
 
             ##  this
