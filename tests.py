@@ -1,6 +1,7 @@
 import json
 import os
 import wave
+from collections import deque
 
 import numpy as np
 
@@ -54,12 +55,16 @@ def test_model_less_data():
 def test_detection_from_wav():
     filedata = read_wav_int16('hey_jarvis.wav')
     model = Model(["hey_jarvis_v0.1.onnx"])
-    chunks = np.array_split(filedata, np.ceil(len(filedata) / CHUNK))
+    model.preprocessor.raw_data_buffer = deque([0] * (CHUNK * 10))
+    total_size = filedata.size
+    full_chunks = total_size // CHUNK
+    np.arange(full_chunks * CHUNK, total_size, CHUNK)
     positive_predictions = []
-    for chunk in chunks:
+    for i, chunk in iterate_chunks(filedata):
         prediction = model.predict(chunk)
         p = prediction['hey_jarvis_v0.1']
         if p > 0.9:
+            print(f"{i} -> {prediction}")
             positive_predictions.append(prediction)
 
     assert 3 <= len(positive_predictions) <= 5
@@ -71,7 +76,7 @@ def test_detection_from_wav_negative():
     model = Model(["hey_jarvis_v0.1.onnx"])
     chunks = np.array_split(filedata, np.ceil(len(filedata) / CHUNK))
     positive_predictions = []
-    for chunk in chunks:
+    for _, chunk in iterate_chunks(filedata):
         prediction = model.predict(chunk)
         p = prediction['hey_jarvis_v0.1']
         if p > 0.1:
@@ -105,3 +110,21 @@ def save_predictions(data: list[dict], filename):
     os.makedirs("test_results", exist_ok=True)
     with open(f'test_results/{filename}', "w") as file:
         json.dump(data, file, indent=4, cls=FloatStringEncoder)
+
+
+
+def iterate_chunks(arr, chunk_size=CHUNK):
+    # Calculate total size and number of full chunks
+    total_size = arr.size
+    n_chunks = total_size // chunk_size
+
+    # Iterate over full chunks
+    for i in range(n_chunks):
+        start_idx = i * chunk_size
+        end_idx = start_idx + chunk_size
+        yield i, arr[start_idx:end_idx]
+
+    # Handle the last partial chunk if it exists
+    if total_size % chunk_size != 0:
+        start_idx = n_chunks * chunk_size
+        yield n_chunks, arr[start_idx:]
