@@ -1,4 +1,0 @@
-numpy
-pyaudio
-onnxruntime
-pytest
