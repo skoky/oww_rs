@@ -46,11 +46,11 @@ impl AudioFeatures {
         Ok(ttt)
     }
 
-    pub(crate) fn get_embeddings(&mut self, data: &Vec<f32>) -> Result<Array2<f32>, String> {
+    pub(crate) fn get_embeddings(&mut self, data: &[f32]) -> Result<Array2<f32>, String> {
         if data.len() != VOICE_SAMPLE_RATE * BUFFER_SECS {
             return Err(format!("Invalid size input size into the model. Expected {}, got {}", 64000, data.len()));
         }
-        let data_array = Array2::from_shape_vec((1, data.len()), data.iter().cloned().collect()).unwrap();
+        let data_array = Array2::from_shape_vec((1, data.len()), data.to_vec()).unwrap();
         let mels = self.get_melspectrogram(&data_array)?;  // dim 397x32
         let mel_x = mels.dim()[0];
         let window_size = 76;
@@ -62,7 +62,7 @@ impl AudioFeatures {
                 let window: ArrayView<f32, Dim<[usize; 2]>> = mels.slice(s![i..i + window_size, ..]);
                 // let (_x, _y) = window.dim();
                 let view3 = window.insert_axis(Axis(0));
-                let _x = windows.append(Axis(0), view3).unwrap();
+                windows.append(Axis(0), view3).unwrap();
             }
         }
 

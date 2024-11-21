@@ -1,6 +1,6 @@
 mod tests {
-    use crate::*;
     use ndarray::{arr2, Ix2};
+    use crate::*;
 
     #[test]
     fn test_mels() {

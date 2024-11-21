@@ -75,7 +75,7 @@ impl MicHandler {
             let detection_prc = (prc * 100.0) as u32;
             info!("Detected {}%", detection_prc);
             if self.save_recordings {
-                let _ = save_wav(&continues_buffer, detection_prc as _);
+                let _ = save_wav(continues_buffer, detection_prc as _);
             }
         }
         Ok((detected, prc))
@@ -84,7 +84,7 @@ impl MicHandler {
 
 
 /// saves last 2 sec of ring buffer to a wav file and returns filename
-fn save_wav(data: &Vec<f32>, detection_prc: u8) -> String {
+fn save_wav(data: &[f32], detection_prc: u8) -> String {
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: VOICE_SAMPLE_RATE as _,
@@ -97,17 +97,15 @@ fn save_wav(data: &Vec<f32>, detection_prc: u8) -> String {
     fs::create_dir_all(WAV_STORING_DIR).unwrap();
     let filename = format!("{WAV_STORING_DIR}/recording_{}_{}.wav", detection_prc, ts);
     let mut writer = hound::WavWriter::create(&filename, spec).unwrap();
-    let mut count: u32 = 0;
     let two_secs = VOICE_SAMPLE_RATE * 2;
     let save_from_point = data.len() - two_secs;
-    for s in data.iter() {
+    for (count, s) in (0_u32..).zip(data.iter()) {
         if count > save_from_point as _ {
             if let Err(e) = writer.write_sample(*s / i16::MAX as f32) {
                 warn!("Error writing to wav file {:?}", e);
                 break;
             }
         }
-        count += 1;
     }
     debug!("Recording saved to {filename}");
     filename
@@ -122,14 +120,12 @@ fn calculate_rms(samples: &Vec<f32>) -> f32 {
         &samples
     };
     let sum_of_squares: f64 = samples_tbd.iter().map(|&s| s as f64 * s as f64).sum();
-    let rms = (sum_of_squares / samples_tbd.len() as f64).sqrt() as f32;
-    // println!("Rms {}", rms);
-    rms
+    (sum_of_squares / samples_tbd.len() as f64).sqrt() as f32
 }
 
 mod tests {
-    use crate::*;
     use circular_buffer::CircularBuffer;
+    use crate::*;
 
     #[test]
     fn test_detection() {
