@@ -40,7 +40,7 @@ impl MicHandler {
         })
     }
 
-    pub fn loop_now(mut self, running: Arc<RwLock<bool>>) -> Result<(), String> {
+    pub fn loop_now(mut self) -> Result<(), String> {
         println!("Starting mic loop, listening, version {}", self.recorder.version());
         let mut ring_buffer = Box::new(CircularBuffer::<64000, f32>::new());  // FIXME
         for _ in 0..ring_buffer.capacity() {
@@ -50,8 +50,7 @@ impl MicHandler {
         self.recorder.start().expect("Failed to start audio recording");
         let mut chunk_count: u32 = 0;
 
-        while *running.read().unwrap() {
-            let start = Instant::now();
+        loop {
             let chunk = self.recorder.read().expect("Error reading chunk");
             ring_buffer.extend_from_slice(chunk.iter().map(|v| *v as f32).collect::<Vec<f32>>().as_slice());
             if chunk_count % CHUNK_RATE == 0 {
@@ -67,10 +66,8 @@ impl MicHandler {
                 }
             }
             chunk_count += 1;
-            // println!("Chunk {} Loop duration {:?}", chunk_count, start.elapsed());
             sleep(Duration::from_millis(SLEEP_TIME_MS as u64)); // TODO better version
         }
-        Ok(())
     }
 }
 
