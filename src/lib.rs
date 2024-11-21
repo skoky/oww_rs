@@ -2,10 +2,7 @@ use crate::audio::AudioFeatures;
 use crate::mic::MicHandler;
 use crate::model::Model;
 use log::info;
-use log::warn;
 use std::path::Path;
-use std::sync::{Arc, RwLock};
-use std::thread::sleep;
 
 pub mod audio;
 mod tests;
@@ -17,8 +14,6 @@ pub const VOICE_SAMPLE_RATE: usize = 16000;   // the sample rate standard value 
 pub const BUFFER_SECS: usize = 4;   // 4 secs buffering is enough for wake word, required by the model
 
 pub const DETECTIONS_PER_SEC: u32 = 4;   // more detections needs more CPU; less might be slower or miss wake word
-
-const CONVERSION_CONST: f32 = 32767.0;  // conversion between mic levels, model levels and saving to wav file
 const WAV_STORING_DIR: &str = "recordings";
 const QUIET_THRESHOLD: f32 = 100.0;   // values under 100 means there is no soud from mic, no model trigering needed
 

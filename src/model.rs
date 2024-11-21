@@ -1,5 +1,3 @@
-use log::warn;
-use log::{debug, info};
 use ndarray::{Array2, Array3, Ix2};
 use ort::{inputs, Session, SessionBuilder, SessionOutputs};
 use std::path::Path;

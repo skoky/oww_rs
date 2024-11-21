@@ -1,6 +1,6 @@
 use crate::audio::AudioFeatures;
 use crate::model::Model;
-use crate::{BUFFER_SECS, CONVERSION_CONST, DETECTIONS_PER_SEC, QUIET_THRESHOLD, VOICE_SAMPLE_RATE, WAV_STORING_DIR};
+use crate::{BUFFER_SECS, DETECTIONS_PER_SEC, QUIET_THRESHOLD, VOICE_SAMPLE_RATE, WAV_STORING_DIR};
 use chrono::Utc;
 use circular_buffer::CircularBuffer;
 use log::{debug, info, warn};
@@ -22,7 +22,6 @@ impl MicHandler {
         // #[cfg(not(target_os = "windows"))]
         // let lib_path = "lib/libpv_recorder.dylib";  // to run on Mac in workspace
 
-        // TODO test increasing frame_length to CHUNK * X to improve performance
         let recorder = pv_recorder::PvRecorderBuilder::new((VOICE_SAMPLE_RATE as f32 / DETECTIONS_PER_SEC as f32) as i32)
             .buffered_frames_count(1)  // one frame is enough, we have local ring buffer
             // .library_path(Path::new(lib_path))
@@ -42,7 +41,7 @@ impl MicHandler {
         info!("Starting mic loop, listening, pv_recorder version {}", self.recorder.version());
 
         const RING_BUFFER_SIZE: usize = VOICE_SAMPLE_RATE * BUFFER_SECS;
-        let mut ring_buffer = Box::new(CircularBuffer::<RING_BUFFER_SIZE, f32>::new());  // FIXME
+        let mut ring_buffer = Box::new(CircularBuffer::<RING_BUFFER_SIZE, f32>::new());
 
         for _ in 0..ring_buffer.capacity() {
             ring_buffer.push_back(0.0);
@@ -69,7 +68,7 @@ impl MicHandler {
         }
     }
 
-    fn detection(&mut self, continues_buffer: &Vec<f32>) -> Result<(), String> {
+    fn detection(&mut self, continues_buffer: &Vec<f32>) -> Result<(bool, f32), String> {
         let embeddings = self.audio.get_embeddings(continues_buffer)?;
         let (detected, prc) = self.model.detect(&embeddings);
         if detected {
@@ -79,7 +78,7 @@ impl MicHandler {
                 let _ = save_wav(&continues_buffer, detection_prc as _);
             }
         }
-        Ok(())
+        Ok((detected, prc))
     }
 }
 
@@ -103,7 +102,7 @@ fn save_wav(data: &Vec<f32>, detection_prc: u8) -> String {
     let save_from_point = data.len() - two_secs;
     for s in data.iter() {
         if count > save_from_point as _ {
-            if let Err(e) = writer.write_sample(*s / CONVERSION_CONST) {
+            if let Err(e) = writer.write_sample(*s / i16::MAX as f32) {
                 warn!("Error writing to wav file {:?}", e);
                 break;
             }
@@ -126,4 +125,29 @@ fn calculate_rms(samples: &Vec<f32>) -> f32 {
     let rms = (sum_of_squares / samples_tbd.len() as f64).sqrt() as f32;
     // println!("Rms {}", rms);
     rms
+}
+
+mod tests {
+    use crate::*;
+    use circular_buffer::CircularBuffer;
+
+    #[test]
+    fn test_detection() {
+        let audio = AudioFeatures::new();
+        let model = Model::new(Path::new("hey_jarvis_v0.1.onnx"), 0.5);
+        let mut mic = MicHandler::new(audio, model, false).unwrap();
+        let mut ring_buffer = Box::new(CircularBuffer::<64000, f32>::new());  // SAMPLE_RATE * 4 secs
+        for x in 0..64000 {  // prefill buffer as wav file is smaller than 4 secs
+            ring_buffer.push_back(x as f32);
+        }
+
+        let mut reader = hound::WavReader::open("hey_jarvis.wav").expect("Missing testing data");
+        for sample in reader.samples::<i16>() {  // have to convert from i16 to f32 for model
+            ring_buffer.push_back(sample.unwrap() as f32 * i16::MAX as f32);
+        }
+
+        let (detected, percentage) = mic.detection(&ring_buffer.to_vec()).unwrap();
+        assert!(detected);
+        assert!(percentage > 0.8);
+    }
 }

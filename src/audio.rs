@@ -48,7 +48,7 @@ impl AudioFeatures {
 
     pub(crate) fn get_embeddings(&mut self, data: &Vec<f32>) -> Result<Array2<f32>, String> {
         if data.len() != VOICE_SAMPLE_RATE * BUFFER_SECS {
-            return Err("Invalid size".to_string());
+            return Err(format!("Invalid size input size into the model. Expected {}, got {}", 64000, data.len()));
         }
         let data_array = Array2::from_shape_vec((1, data.len()), data.iter().cloned().collect()).unwrap();
         let mels = self.get_melspectrogram(&data_array)?;  // dim 397x32
