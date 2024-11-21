@@ -1,0 +1,21 @@
+[package]
+name = "oww-rs"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+pv_recorder = "1.2.3"
+ndarray = "0.16"
+ort = "2.0.0-rc.8"
+rust-embed = "8.5"
+log = "*"
+env_logger = "*"
+chrono = "0.4"
+circular-buffer = "0.1"
+hound = "*"
+
+[dev-dependencies]
+tokio = { version = "1.41", features = ["full"] }
