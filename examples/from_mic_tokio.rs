@@ -7,7 +7,8 @@ use log::{info, LevelFilter};
 
 const DETECTION_THRESHOLD: f32 = 0.3;  // 30%
 
-fn main() {
+#[tokio::main]
+async fn main() {
 
     Builder::new()
         .filter_level(LevelFilter::Debug)

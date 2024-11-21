@@ -1,26 +1,21 @@
-use crate::{BUFFER_SECS, CHUNK, CHUNK_RATE, CONVERSION_CONST, QUIET_THRESHOLD, SLEEP_TIME_MS, VOICE_SAMPLE_RATE, WAV_STORING_DIR};
 use crate::audio::AudioFeatures;
 use crate::model::Model;
+use crate::{BUFFER_SECS, CONVERSION_CONST, DETECTIONS_PER_SEC, QUIET_THRESHOLD, VOICE_SAMPLE_RATE, WAV_STORING_DIR};
 use chrono::Utc;
 use circular_buffer::CircularBuffer;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use pv_recorder::PvRecorder;
 use std::fs;
-use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
-use std::thread::sleep;
-use std::time::{Duration, Instant};
-use ndarray::ErrorKind::IncompatibleShape;
 
 pub struct MicHandler {
-    pub audio: AudioFeatures,
-    pub model: Model,
-    pub recorder: PvRecorder,
+    audio: AudioFeatures,
+    model: Model,
+    recorder: PvRecorder,
+    save_recordings: bool,
 }
 
 impl MicHandler {
-    pub fn new(audio: AudioFeatures, model: Model) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(audio: AudioFeatures, model: Model, save_recordings: bool) -> Result<Self, Box<dyn std::error::Error>> {
         // #[cfg(target_os = "windows")]
         // let lib_path = "winlib/libpv_recorder.dll";
         //
@@ -28,7 +23,8 @@ impl MicHandler {
         // let lib_path = "lib/libpv_recorder.dylib";  // to run on Mac in workspace
 
         // TODO test increasing frame_length to CHUNK * X to improve performance
-        let recorder = pv_recorder::PvRecorderBuilder::new(CHUNK as _)
+        let recorder = pv_recorder::PvRecorderBuilder::new((VOICE_SAMPLE_RATE as f32 / DETECTIONS_PER_SEC as f32) as i32)
+            .buffered_frames_count(1)  // one frame is enough, we have local ring buffer
             // .library_path(Path::new(lib_path))
             .init().expect("PV recorder init error");
         info!("Mic device: {}", recorder.selected_device());
@@ -37,37 +33,53 @@ impl MicHandler {
             audio,
             model,
             recorder,
+            save_recordings,
         })
     }
 
-    pub fn loop_now(mut self) -> Result<(), String> {
-        println!("Starting mic loop, listening, version {}", self.recorder.version());
-        let mut ring_buffer = Box::new(CircularBuffer::<64000, f32>::new());  // FIXME
+
+    pub fn loop_now(&mut self) -> Result<(), String> {
+        info!("Starting mic loop, listening, pv_recorder version {}", self.recorder.version());
+
+        const RING_BUFFER_SIZE: usize = VOICE_SAMPLE_RATE * BUFFER_SECS;
+        let mut ring_buffer = Box::new(CircularBuffer::<RING_BUFFER_SIZE, f32>::new());  // FIXME
+
         for _ in 0..ring_buffer.capacity() {
             ring_buffer.push_back(0.0);
         }
 
         self.recorder.start().expect("Failed to start audio recording");
-        let mut chunk_count: u32 = 0;
 
         loop {
-            let chunk = self.recorder.read().expect("Error reading chunk");
-            ring_buffer.extend_from_slice(chunk.iter().map(|v| *v as f32).collect::<Vec<f32>>().as_slice());
-            if chunk_count % CHUNK_RATE == 0 {
-                let continues_buffer = ring_buffer.to_vec();
-                if calculate_rms(&continues_buffer) > QUIET_THRESHOLD {
-                    let embeddings = self.audio.get_embeddings(&continues_buffer)?;
-                    let (detected, prc) = self.model.detect(&embeddings);
-                    if detected {
-                        let detection_prc = (prc * 100.0) as u32;
-                        println!("Detected {}%", detection_prc);
-                        let _ = save_wav(&continues_buffer, detection_prc as _);
-                    }
+            let chunk = match self.recorder.read() {
+                Ok(chunk) => chunk,
+                Err(e) => {
+                    warn!("Error reading chunk. Mic change? {}", e.to_string());
+                    return Err(e.to_string());
                 }
+            };
+            ring_buffer.extend_from_slice(chunk.iter().map(|v| *v as f32).collect::<Vec<f32>>().as_slice());
+
+            let continues_buffer = ring_buffer.to_vec();
+            let rms = calculate_rms(&continues_buffer);
+
+            if rms > QUIET_THRESHOLD {
+                self.detection(&continues_buffer)?;
             }
-            chunk_count += 1;
-            sleep(Duration::from_millis(SLEEP_TIME_MS as u64)); // TODO better version
         }
+    }
+
+    fn detection(&mut self, continues_buffer: &Vec<f32>) -> Result<(), String> {
+        let embeddings = self.audio.get_embeddings(continues_buffer)?;
+        let (detected, prc) = self.model.detect(&embeddings);
+        if detected {
+            let detection_prc = (prc * 100.0) as u32;
+            info!("Detected {}%", detection_prc);
+            if self.save_recordings {
+                let _ = save_wav(&continues_buffer, detection_prc as _);
+            }
+        }
+        Ok(())
     }
 }
 

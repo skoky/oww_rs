@@ -1,8 +1,7 @@
-use log::{debug, info};
 use log::warn;
+use log::{debug, info};
 use ndarray::{Array2, Array3, Ix2};
 use ort::{inputs, Session, SessionBuilder, SessionOutputs};
-use rust_embed::Embed;
 use std::path::Path;
 
 pub struct Model {
@@ -14,10 +13,6 @@ impl Model {
     pub(crate) fn detect(&self, embeddings: &Array2<f32>) -> (bool, f32) {
         let out = self.session.run(inputs![convert_array_shape(embeddings)].unwrap()).unwrap();
         let probability = get_probability(out);
-        info!("Positive: {}%", probability);
-        if probability > self.threshold  {
-            info!("Positive: {}%", probability);
-        }
         (probability > self.threshold, probability)
     }
 

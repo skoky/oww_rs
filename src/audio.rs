@@ -62,7 +62,7 @@ impl AudioFeatures {
                 let window: ArrayView<f32, Dim<[usize; 2]>> = mels.slice(s![i..i + window_size, ..]);
                 // let (_x, _y) = window.dim();
                 let view3 = window.insert_axis(Axis(0));
-                let x = windows.append(Axis(0), view3).unwrap();
+                let _x = windows.append(Axis(0), view3).unwrap();
             }
         }
 
