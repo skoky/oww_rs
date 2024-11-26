@@ -132,7 +132,7 @@ mod tests {
         let audio = AudioFeatures::new();
         let model = Model::new(Path::new("hey_jarvis_v0.1.onnx"), 0.5);
         let mut mic = MicHandler::new(audio, model, false).unwrap();
-        let mut ring_buffer = Box::new(CircularBuffer::<64000, f32>::new());  // SAMPLE_RATE * 4 secs
+        let mut ring_buffer = CircularBuffer::<64000, f32>::boxed();  // SAMPLE_RATE * 4 secs
         for x in 0..64000 {  // prefill buffer as wav file is smaller than 4 secs
             ring_buffer.push_back(x as f32);
         }
