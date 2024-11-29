@@ -18,9 +18,13 @@ impl AudioFeatures {
     pub fn new() -> Self {
         let mel_session = SessionBuilder::new().unwrap()
             // .with_profiling("prof.txt").unwrap()
+            .with_intra_threads(1).unwrap()
+            .with_inter_threads(1).unwrap()
             .commit_from_memory(&Models::get("melspectrogram.onnx").unwrap().data)
             .unwrap();
         let emb_session = SessionBuilder::new().unwrap()
+            .with_intra_threads(1).unwrap()
+            .with_inter_threads(1).unwrap()
             .commit_from_memory(&Models::get("embedding_model.onnx").unwrap().data).unwrap();
 
         AudioFeatures {

@@ -41,7 +41,7 @@ impl MicHandler {
         info!("Starting mic loop, listening, pv_recorder version {}", self.recorder.version());
 
         const RING_BUFFER_SIZE: usize = VOICE_SAMPLE_RATE * BUFFER_SECS;
-        let mut ring_buffer = Box::new(CircularBuffer::<RING_BUFFER_SIZE, f32>::new());
+        let mut ring_buffer = CircularBuffer::<RING_BUFFER_SIZE, f32>::boxed();
 
         for _ in 0..ring_buffer.capacity() {
             ring_buffer.push_back(0.0);
@@ -124,8 +124,8 @@ fn calculate_rms(samples: &Vec<f32>) -> f32 {
 }
 
 mod tests {
-    use circular_buffer::CircularBuffer;
     use crate::*;
+    use circular_buffer::CircularBuffer;
 
     #[test]
     fn test_detection() {

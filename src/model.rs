@@ -1,6 +1,7 @@
 use ndarray::{Array2, Array3, Ix2};
 use ort::{inputs, Session, SessionBuilder, SessionOutputs};
 use std::path::Path;
+use log::debug;
 
 pub struct Model {
     pub session: Session,
@@ -18,6 +19,8 @@ impl Model {
         // let env = ort::init().commit().unwrap();
         let session = SessionBuilder::new().unwrap()
             // .with_profiling("prof.txt").unwrap()
+            .with_intra_threads(1).unwrap()
+            .with_inter_threads(1).unwrap()
             .commit_from_file(model_path)
             .unwrap();
 
