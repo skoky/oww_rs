@@ -65,7 +65,7 @@ impl MicHandler {
             if rms > QUIET_THRESHOLD {
                 let (detected, prc) = self.model.detection(&mut self.audio, &continues_buffer)?;
                 if detected {
-                    save_wav(&continues_buffer, (prc*100) as _);
+                    save_wav(&continues_buffer, (prc * 100.0) as _);
                 }
             }
         }
