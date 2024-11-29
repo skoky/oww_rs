@@ -63,22 +63,9 @@ impl MicHandler {
             let rms = calculate_rms(&continues_buffer);
 
             if rms > QUIET_THRESHOLD {
-                self.detection(&continues_buffer)?;
+                self.model.detection(&mut self.audio,&continues_buffer)?;
             }
         }
-    }
-
-    fn detection(&mut self, continues_buffer: &Vec<f32>) -> Result<(bool, f32), String> {
-        let embeddings = self.audio.get_embeddings(continues_buffer)?;
-        let (detected, prc) = self.model.detect(&embeddings);
-        if detected {
-            let detection_prc = (prc * 100.0) as u32;
-            info!("Detected {}%", detection_prc);
-            if self.save_recordings {
-                let _ = save_wav(continues_buffer, detection_prc as _);
-            }
-        }
-        Ok((detected, prc))
     }
 }
 
@@ -129,9 +116,8 @@ mod tests {
 
     #[test]
     fn test_detection() {
-        let audio = AudioFeatures::new();
-        let model = Model::new(Path::new("hey_jarvis_v0.1.onnx"), 0.5);
-        let mut mic = MicHandler::new(audio, model, false).unwrap();
+        let mut audio = AudioFeatures::new();
+        let mut model = Model::new(Path::new("hey_jarvis_v0.1.onnx"), 0.5);
         let mut ring_buffer = CircularBuffer::<64000, f32>::boxed();  // SAMPLE_RATE * 4 secs
         for x in 0..64000 {  // prefill buffer as wav file is smaller than 4 secs
             ring_buffer.push_back(x as f32);
@@ -142,7 +128,7 @@ mod tests {
             ring_buffer.push_back(sample.unwrap() as f32 * i16::MAX as f32);
         }
 
-        let (detected, percentage) = mic.detection(&ring_buffer.to_vec()).unwrap();
+        let (detected, percentage) = model.detection(&mut audio, &ring_buffer.to_vec()).unwrap();
         assert!(detected);
         assert!(percentage > 0.8);
     }

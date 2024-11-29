@@ -1,7 +1,8 @@
+use crate::audio::AudioFeatures;
+use log::{debug, info};
 use ndarray::{Array2, Array3, Ix2};
 use ort::{inputs, Session, SessionBuilder, SessionOutputs};
 use std::path::Path;
-use log::debug;
 
 pub struct Model {
     pub session: Session,
@@ -29,9 +30,18 @@ impl Model {
             threshold,
         }
     }
+
+
+    pub(crate) fn detection(&mut self, mut audio: &mut AudioFeatures, continues_buffer: &Vec<f32>) -> Result<(bool, f32), String> {
+        let embeddings = audio.get_embeddings(continues_buffer)?;
+        let (detected, prc) = self.detect(&embeddings);
+        if detected {
+            let detection_prc = (prc * 100.0) as u32;
+            info!("Detected {}%", detection_prc);
+        }
+        Ok((detected, prc))
+    }
 }
-
-
 fn get_probability(out: SessionOutputs) -> f32 {
     let (_k, v) = out.first_key_value().unwrap();
     let t = v.try_extract_tensor::<f32>().unwrap();
@@ -39,6 +49,7 @@ fn get_probability(out: SessionOutputs) -> f32 {
     let prob = tt.as_slice().unwrap()[0];
     prob
 }
+
 
 fn convert_array_shape(input: &Array2<f32>) -> Array3<f32> {
     assert_eq!(input.shape(), &[41, 96], "Input array must be shape (41,96)");
