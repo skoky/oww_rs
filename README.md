@@ -1,3 +1,5 @@
+[![Build & test](https://github.com/skoky/oww_rs/actions/workflows/rust.yml/badge.svg)](https://github.com/skoky/oww_rs/actions/workflows/rust.yml)
+
 # Minimalistic version of the OpenWakeWord inference in Rust and ONNX runtime
 
 This is extracted source code from the [OpenWakeWord](https://github.com/dscripka/openWakeWord) 
