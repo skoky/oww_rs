@@ -24,7 +24,7 @@ impl Model {
         // let env = ort::init().commit().unwrap();
         let session = SessionBuilder::new().unwrap()
             // .with_profiling("prof.txt").unwrap()
-            .with_intra_threads(1).unwrap()
+            .with_intra_threads(1).unwrap() // please note the OWW model is optimized for 1 CPU thread
             .with_inter_threads(1).unwrap()
             .commit_from_file(model_path)
             .unwrap();

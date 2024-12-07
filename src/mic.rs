@@ -64,9 +64,12 @@ impl MicHandler {
             let chunk_f32: Vec<f32> = chunk.to_vec().into_iter().map(|x| x as f32).collect();
 
             let rms = calculate_rms(&chunk_f32);
-            if rms > QUIET_THRESHOLD {
-                let (detected, prc) = self.model.detection(&mut self.audio, &chunk_f32)?;
-                // TODO is saving needed, save the ring_buffer as wav
+            if rms < QUIET_THRESHOLD {
+                // TODO quite detected, sleep?
+            }
+            let (detected, prc) = self.model.detection(&mut self.audio, &chunk_f32)?;
+            if detected {
+                // TODO saving to wav file the continues_buffer if needed
             }
         }
     }
