@@ -1,10 +1,14 @@
 use crate::audio::AudioFeatures;
 use log::{debug, info};
 use ndarray::{Array2, Array3, Ix2};
-use ort::{inputs, Session, SessionBuilder, SessionOutputs};
 use std::path::Path;
+use log::warn;
+use ort::inputs;
+use ort::session::builder::SessionBuilder;
+use ort::session::{Session, SessionOutputs};
 
 pub struct Model {
+    pub model_name: String,
     pub session: Session,
     threshold: f32,
 }
@@ -26,6 +30,7 @@ impl Model {
             .unwrap();
 
         Model {
+            model_name: model_path.to_str().unwrap().to_string(),
             session,
             threshold,
         }
@@ -33,7 +38,7 @@ impl Model {
 
 
     pub(crate) fn detection(&mut self, mut audio: &mut AudioFeatures, continues_buffer: &Vec<f32>) -> Result<(bool, f32), String> {
-        let embeddings = audio.get_embeddings(continues_buffer)?;
+        let embeddings = audio.get_audio_features(continues_buffer.clone())?;
         let (detected, prc) = self.detect(&embeddings);
         if detected {
             let detection_prc = (prc * 100.0) as u32;
@@ -43,11 +48,25 @@ impl Model {
     }
 }
 fn get_probability(out: SessionOutputs) -> f32 {
-    let (_k, v) = out.first_key_value().unwrap();
-    let t = v.try_extract_tensor::<f32>().unwrap();
-    let tt = t.into_dimensionality::<Ix2>().unwrap();
-    let prob = tt.as_slice().unwrap()[0];
-    prob
+    for v in out.values() {
+        let array1 = v.try_extract_tensor::<f32>().unwrap();
+        let array2 = array1.into_dimensionality::<Ix2>().unwrap();
+        return match array2.as_slice() {
+            None =>  {
+                warn!("No prob from model");
+                0.0
+            }
+            Some(p) if p.len() == 1 => {
+                p[0]
+            }
+            _ => {
+                warn!("Invalid output from model");
+                0.0
+            }
+        };
+    }
+    warn!("No values probability found from model");
+    0.0
 }
 
 

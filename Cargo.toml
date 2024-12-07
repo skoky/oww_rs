@@ -9,7 +9,7 @@ crate-type = ["lib"]
 [dependencies]
 pv_recorder = "1.2.3"
 ndarray = "0.16"
-ort = "2.0.0-rc.8"
+ort = "2.0.0-rc.9"
 rust-embed = "8.5"
 log = "*"
 env_logger = "*"

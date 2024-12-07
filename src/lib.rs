@@ -17,6 +17,8 @@ pub const DETECTIONS_PER_SEC: u32 = 4;   // more detections needs more CPU; less
 const WAV_STORING_DIR: &str = "recordings";
 const QUIET_THRESHOLD: f32 = 100.0;   // values under 100 means there is no soud from mic, no model trigering needed
 
+const CHUNK: usize = 1280;    // chunk size got from mic buffer
+
 pub fn create_unlock_task(model_path: &Path, detection_threshold: f32) -> Result<(), String> {
     info!("Using unlock model {}", &model_path.to_str().unwrap());
 

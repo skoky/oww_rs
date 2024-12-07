@@ -15,8 +15,8 @@ mod tests {
     #[test]
     fn test_embeddings() {
         let mut audio = AudioFeatures::new();
-        let sample_data = [0f32; VOICE_SAMPLE_RATE * BUFFER_SECS];
-        let embeddings = audio.get_embeddings(&sample_data.to_vec()).unwrap();
+        let sample_data = [0f32; CHUNK];
+        let embeddings = audio.get_audio_features(sample_data.to_vec()).unwrap();
         let dim = embeddings.into_dimensionality::<Ix2>().unwrap().dim();
         assert_eq!(dim, (41, 96))
     }
