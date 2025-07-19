@@ -3,6 +3,7 @@ use ndarray::{s, stack, Array, Array1, Array2, Array4, Axis, Ix1, Ix2, IxDyn};
 use ort::inputs;
 use ort::session::builder::SessionBuilder;
 use ort::session::{Session, SessionOutputs};
+use ort::value::{Tensor, TensorRef};
 use rust_embed::Embed;
 use crate::CHUNK;
 
@@ -56,12 +57,12 @@ impl AudioFeatures {
         &mut self,
         data: &Array2<f32>, // dim 1 = 64000; i.e. VOICE_SAMPLE_RATE * BUFFER_SECS
     ) -> Result<Array<f32, IxDyn>, String> {
-        let input_tensor = inputs![data.clone()].unwrap();
+        let input_tensor = inputs![TensorRef::from_array_view(data).unwrap()];
 
         // Run model prediction
         let outputs = self.mel_session.run(input_tensor).unwrap();
 
-        let array1 = outputs["output"].try_extract_tensor::<f32>().unwrap();
+        let array1 = outputs["output"].try_extract_array::<f32>().unwrap();
         let array2 = array1.squeeze().mapv(|v| (v / 10.0) + 2.0);
 
         // dim is 5x32
@@ -80,7 +81,7 @@ impl AudioFeatures {
         let mels = self.mel_convert_update_buffer(mels_chunk)?;
 
         let input = create_input_tensor(&mels);
-        let input_tensor = inputs! {"input_1"=> input}.unwrap();
+        let input_tensor = inputs! {"input_1"=> Tensor::from_array(input).unwrap()};
 
         let outputs = self.emb_session.run(input_tensor).unwrap();
 
@@ -104,7 +105,7 @@ fn features_convert_and_update_buffer(
     outputs: SessionOutputs,
 ) -> Result<Array2<f32>, String> {
     for value in outputs.values() {
-        let tt = value.try_extract_tensor::<f32>().unwrap();
+        let tt: ndarray::ArrayViewD<'_, f32> = value.try_extract_array::<f32>().unwrap();
         let ttt: Array<f32, Ix1> = tt.flatten().into_owned();
         feature_buffer.push_back(ttt);
         let vectors: Vec<Array<f32, Ix1>> = feature_buffer.to_vec();

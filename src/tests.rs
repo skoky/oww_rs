@@ -1,6 +1,7 @@
 mod tests {
     use ndarray::{arr2, Ix2};
-    use crate::*;
+    use crate::audio::AudioFeatures;
+    use crate::CHUNK;
 
     #[test]
     fn test_mels() {

@@ -6,6 +6,7 @@ use log::warn;
 use ort::inputs;
 use ort::session::builder::SessionBuilder;
 use ort::session::{Session, SessionOutputs};
+use ort::value::Tensor;
 
 pub struct Model {
     pub model_name: String,
@@ -14,8 +15,9 @@ pub struct Model {
 }
 
 impl Model {
-    pub(crate) fn detect(&self, embeddings: &Array2<f32>) -> (bool, f32) {
-        let out = self.session.run(inputs![convert_array_shape(embeddings)].unwrap()).unwrap();
+    pub(crate) fn detect(&mut self, embeddings: &Array2<f32>) -> (bool, f32) {
+        let s = convert_array_shape(embeddings);
+        let out = self.session.run(inputs![Tensor::from_array(s).unwrap()]).unwrap();
         let probability = get_probability(out);
         (probability > self.threshold, probability)
     }
@@ -49,7 +51,7 @@ impl Model {
 }
 fn get_probability(out: SessionOutputs) -> f32 {
     for v in out.values() {
-        let array1 = v.try_extract_tensor::<f32>().unwrap();
+        let array1 = v.try_extract_array::<f32>().unwrap();
         let array2 = array1.into_dimensionality::<Ix2>().unwrap();
         return match array2.as_slice() {
             None =>  {
