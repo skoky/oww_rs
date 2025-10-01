@@ -3,11 +3,9 @@ use crate::config::{SpeechUnlockType, UnlockConfig};
 use crate::oww::OwwModel;
 
 pub(crate) trait Model: Send + Sync {
-    fn about(&self) -> String;
     fn frame_length(&self) -> u32;
     fn detect(&mut self, data: Vec<f32>) -> Option<Detection>;
     fn detect_i16(&mut self, data: Vec<i16>) -> Option<Detection>;
-    fn short_name(&self) -> String;
 }
 
 pub fn new_model(config: UnlockConfig) -> Result<Box<dyn Model>, String> {

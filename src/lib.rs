@@ -67,11 +67,8 @@ impl Models {
 }
 
 pub fn create_unlock_task_sync(
-    config_file_name: PathBuf,
     running: CancellationToken,
-    me: &str,
     chunks_sender: broadcast::Sender<ChunkType>,
-    wav_dir_path: String,
 ) -> Result<bool, String> {
     let running2 = running.clone();
     let mut mic_failing = false;
@@ -88,17 +85,15 @@ pub fn create_unlock_task_sync(
         };
 
         let mic_loop = MicHandlerCpal::new(
-            me,
             Arc::new(Mutex::new(Models::new(models.0, models.1))),
             &config,
             chunks_sender.clone(),
-            wav_dir_path.clone(),
         );
 
         match mic_loop {
             Ok(mut mic) => {
                 mic_failing = false;
-                if let Err(e) = mic.loop_now_sync(me, running.clone()) {
+                if let Err(e) = mic.loop_now_sync(running.clone()) {
                     warn!("Mic loop error {:?}. Reloading mic loop", e)
                 }
                 debug!("Mic loop successful");

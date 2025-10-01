@@ -1,8 +1,8 @@
 use crate::mic::mic_cpal::MODEL_SAMPLE_RATE;
-use crate::mic::process_audio::{interlace_stereo, interlace_stereo2, split_channels, split_channels2};
+use crate::mic::process_audio::{interlace_stereo2, split_channels2};
 use crate::oww::OWW_MODEL_CHUNK_SIZE;
 use log::{debug, info, warn};
-use rubato::{FftFixedIn, FftFixedInOut, FftFixedOut, Resampler};
+use rubato::{FftFixedInOut, FftFixedOut, Resampler};
 use std::error::Error;
 use std::fmt::{Debug, Formatter};
 
@@ -26,7 +26,7 @@ impl Debug for Resamplers {
 }
 
 pub fn make_resampler(original_sample_rate: u32, model_chunk_size: u32, channels_count: usize) -> Result<Resamplers, Box<dyn Error>> {
-    let sample_rate = (original_sample_rate as f32 / MODEL_SAMPLE_RATE as f32);
+    let sample_rate = original_sample_rate as f32 / MODEL_SAMPLE_RATE as f32 ;
 
     if sample_rate.floor() != sample_rate {
         warn!("mic sample rate not supported {}; using double resampling", sample_rate);
@@ -38,7 +38,7 @@ pub fn make_resampler(original_sample_rate: u32, model_chunk_size: u32, channels
 
         let main = FftFixedInOut::<f32>::new(HIGH_SAMPLING_RATE as _, MODEL_SAMPLE_RATE as _, main_sampler_input_size, channels_count)?;
 
-        let upsampler_output_size = (OWW_MODEL_CHUNK_SIZE as f32 * internal_rate as f32) as usize;
+        let upsampler_output_size = (OWW_MODEL_CHUNK_SIZE as f32 * internal_rate) as usize;
         let upsampler_input_size = (upsampler_output_size as f32 * upsampler_rate) as usize;
 
         let upsampler = FftFixedOut::<f32>::new(original_sample_rate as _, HIGH_SAMPLING_RATE as _, upsampler_output_size, 1, channels_count)?;
@@ -47,12 +47,14 @@ pub fn make_resampler(original_sample_rate: u32, model_chunk_size: u32, channels
             main,
             upsampler,
             use_upsampler: true,
-            chunk_for_resampling: upsampler_input_size as usize,
+            chunk_for_resampling: upsampler_input_size,
             resample_rate: sample_rate,
         };
         debug!("Resamplers: {:?}", resamplers);
         Ok(resamplers)
     } else {
+        info!("mic sample rate {}", sample_rate);
+
         // Do not use channels here. The rate should be alculated per channel only
         let input_chunk_size: usize = (model_chunk_size * sample_rate as u32) as usize;
 

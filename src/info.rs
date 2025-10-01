@@ -1,13 +1,11 @@
 use crate::config::SpeechUnlockType::{OpenWakeWordAlexa};
 use crate::config::{UnlockConfig};
 use log::{debug};
-use serde_derive::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 pub const OWW_CZ_NAME_AHOJ_HUGO: &str = "Český - Ahoj Hugo";
 pub const OWW_CZ_NAME_ALEXA: &str = "Český - Alexa";
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Debug)]
 pub struct LanguageModel {
     pub name: String,
     pub selected: bool,
@@ -25,7 +23,7 @@ pub fn get_trigger_phases(unlock_config: &UnlockConfig) -> Vec<String> {
     }
 }
 
-pub fn set_unlock_model(unlock_config_file: PathBuf, language_model: &LanguageModel) -> Option<UnlockConfig> {
+pub fn set_unlock_model(language_model: &LanguageModel) -> Option<UnlockConfig> {
     let unlock_config = UnlockConfig::default(); // load_config(unlock_config_file.clone());
 
     let model_type = match language_model.name.as_str() {

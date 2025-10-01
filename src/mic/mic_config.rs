@@ -1,7 +1,7 @@
 use crate::VOICE_SAMPLE_RATE;
 use cpal::traits::DeviceTrait;
-use cpal::{ChannelCount, SampleFormat, SampleRate, StreamConfig, SupportedBufferSize, SupportedStreamConfig, SupportedStreamConfigRange};
-use log::{debug, error, info, warn};
+use cpal::{SampleFormat, SampleRate, StreamConfig, SupportedStreamConfigRange};
+use log::{debug, error, info};
 
 pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFormat), Box<dyn std::error::Error>> {
     #[cfg(target_os = "ios")]

@@ -7,7 +7,6 @@ use tract_core::prelude::multithread::{self, Executor};
 use tract_onnx::prelude::Tensor;
 
 use crate::ModelType;
-use tract_ndarray::prelude::*;
 use tract_onnx::prelude::*;
 
 #[derive(Embed)]

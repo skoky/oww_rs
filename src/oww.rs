@@ -23,9 +23,6 @@ pub struct OwwModel {
 }
 
 impl Model for OwwModel {
-    fn about(&self) -> String {
-        format!("OWW {:?}", self.model_unlock_word)
-    }
 
     fn frame_length(&self) -> u32 {
         OWW_MODEL_CHUNK_SIZE as u32
@@ -36,11 +33,9 @@ impl Model for OwwModel {
         Some(self.detection(chunk))
     }
 
-    fn detect_i16(&mut self, data: Vec<i16>) -> Option<Detection> {
+    fn detect_i16(&mut self, _data: Vec<i16>) -> Option<Detection> {
         None
     }
 
-    fn short_name(&self) -> String {
-        "oww".to_string()
-    }
+
 }

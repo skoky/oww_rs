@@ -4,19 +4,14 @@ use crate::mic::converters::i16_to_f32;
 use crate::mic::mic_config::find_best_config;
 use crate::mic::process_audio::resample_into_chunks;
 use crate::mic::resampler::make_resampler;
-use crate::model::{Detection, Model};
+use crate::model::{Detection};
 use crate::rms::calculate_rms;
-use crate::save::save_full_wav;
-use crate::{Models, mic};
+use crate::Models;
 use circular_buffer::CircularBuffer;
 use cpal::SampleFormat;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use crossbeam::channel::{Receiver, Sender};
-use log::{debug, error, info, trace, warn};
-use rubato::{FftFixedIn, FftFixedInOut, VecResampler};
+use log::{debug, error, info, warn};
 use std::error::Error;
-use std::ops::Deref;
-use std::process::exit;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
@@ -27,12 +22,9 @@ use crate::chunk::{Chunk, ChunkType};
 pub(crate) const MODEL_SAMPLE_RATE: u32 = 16000;
 
 pub struct MicHandlerCpal {
-    me: String,
     model: Arc<Mutex<Models>>,
     unlock_config: UnlockConfig,
     chunks_sender: broadcast::Sender<ChunkType>,
-    wav_dir_path: String,
-    detection_duration_ms: u128,
 }
 
 impl MicHandlerCpal {
@@ -43,23 +35,18 @@ impl MicHandlerCpal {
     }
 
     pub(crate) fn new(
-        me: &str,
         model: Arc<Mutex<Models>>,
         unlock_config: &UnlockConfig,
         chunks_sender: broadcast::Sender<ChunkType>,
-        wav_dir_path: String,
     ) -> Result<Self, Box<dyn Error>> {
         Ok(MicHandlerCpal {
-            me: me.to_string(),
             model,
             unlock_config: unlock_config.clone(),
             chunks_sender,
-            wav_dir_path,
-            detection_duration_ms: 0,
         })
     }
 
-    pub fn loop_now_sync(&mut self, me: &str, cancellation_token: CancellationToken) -> Result<bool, Box<dyn Error>> {
+    pub fn loop_now_sync(&mut self,  cancellation_token: CancellationToken) -> Result<bool, Box<dyn Error>> {
         // Initialize CPAL
         let host = cpal::default_host();
         let device = match host.default_input_device() {
@@ -111,7 +98,7 @@ impl MicHandlerCpal {
             SampleFormat::F32 => device.build_input_stream(
                 &config,
                 move |data: &[f32], _info: &cpal::InputCallbackInfo| {
-                    resample_into_chunks(&data, &buffer_clone, channels, &mut resamplers).iter().for_each(|chunk| {
+                    resample_into_chunks(data, &buffer_clone, channels, &mut resamplers).iter().for_each(|chunk| {
                         ring_buffer.lock().unwrap().push_back(chunk.clone());
                         handle_detect(
                             chunk,
@@ -152,8 +139,8 @@ impl MicHandlerCpal {
         let mut check_mic_count: u64 = 0;
         while !cancellation_token.is_cancelled() {
             check_mic_count += 1;
-            if check_mic_count % 20 == 0 {
-                let mic_name = self.check_mic(self.unlock_config.quite_threshold);
+            if check_mic_count.is_multiple_of(20) {
+                let mic_name = self.check_mic();
                 match mic_name {
                     Some(mic_name) if last_mic_name != mic_name => {
                         last_mic_name = mic_name.clone();
@@ -171,33 +158,14 @@ impl MicHandlerCpal {
         Ok(false)
     }
 
-    fn check_mic(&self, min_rms: i16) -> Option<String> {
-        return match MicHandlerCpal::default_mic_name() {
+    fn check_mic(&self) -> Option<String> {
+        match MicHandlerCpal::default_mic_name() {
             Ok(default_mic) => Some(default_mic),
             Err(e) => {
                 warn!("Mic error {}", e);
                 None
             }
-        };
-
-        // if rms < min_rms / 10 {
-        //     match get_mic_volume() {
-        //         Ok(v) if v < 10 => {  // 10%
-        //             self.ws.clone().map(|ws| ws.send(DeviceStatus(Mic, ServiceStatus::ok().off().name(last_mic_name))));
-        //         }
-        //         Ok(_) => {}
-        //         Err(e) => {
-        //             warn!("Mic error {:?}", e);
-        //             self.ws.clone().map(|ws| ws.send(DeviceStatus(Mic, ServiceStatus::ok().off().name("---"))));
-        //             return true;
-        //         }
-        //     }
-        // } else {
-        //     self.ws.clone().map(|ws| ws.send(DeviceStatus(Mic, ServiceStatus::ok().on().name(last_mic_name))));
-        //     return true;
-        // }
-
-        None
+        }
     }
 }
 
@@ -229,12 +197,10 @@ pub(crate) fn handle_detect(
         .enumerate()
         .map(|(i, data)| if i == 0 { model.detect1_i16(data.clone()) } else { model.detect2_i16(data.clone()) })
         .collect();
-
-    // println!("Detections {:?}, chunk {}", detections_f32, chunk.data_f32.first().len());
-    /// find the best detection
+    // find the best detection
     let detection = detections_f32
         .into_iter()
-        .chain(detections_i16.into_iter()) // flatten both vectors into one iterator
+        .chain(detections_i16) // flatten both vectors into one iterator
         .flatten() // remove the None values
         .max_by(|d1, d2| d1.probability.partial_cmp(&d2.probability).unwrap())
         .unwrap();
@@ -242,9 +208,7 @@ pub(crate) fn handle_detect(
     if detection.detected {
         let rmss: Vec<i16> = buffered_chunks.iter().map(|c| c.rms).collect();
         let max_rms = calculate_rms(rmss.as_ref());
-
-        debug!("Detection {:?}, max_rms {} limit {}", detection, max_rms, quite_threshold);
-
+        println!("Detection {:?}, max_rms {} limit {}", detection, max_rms, quite_threshold);
     }
     detection
 }

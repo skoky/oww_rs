@@ -2,7 +2,7 @@ use crate::VOICE_SAMPLE_RATE;
 use chrono::Utc;
 use log::{debug, warn};
 
-pub fn save_full_wav(data: &Vec<i16>, detection_prc: u8, me: &str, prefix: &str, max_rms: i16, short_wav: bool, dir_path: &str) -> String {
+pub fn save_full_wav(data: &Vec<i16>, detection_prc: u8, me: &str, prefix: &str, max_rms: i16, dir_path: &str) -> String {
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: VOICE_SAMPLE_RATE as _,
@@ -16,7 +16,7 @@ pub fn save_full_wav(data: &Vec<i16>, detection_prc: u8, me: &str, prefix: &str,
     // println!("Saving {}", filename);
     let mut writer = hound::WavWriter::create(&filename, spec).unwrap();
 
-    for (index, d) in data.iter().enumerate() {
+    for d in data {
         // if (short_wav && index > RING_BUFFER_SIZE / 2) || !short_wav {
         if let Err(e) = writer.write_sample(*d) {
             warn!("Error writing to wav file {:?}", e);
@@ -36,7 +36,6 @@ pub fn save_full_wav_with_channels(
     me: &str,
     prefix: &str,
     max_rms: i16,
-    short_wav: bool,
     dir_path: &str,
 ) -> String {
     let spec = hound::WavSpec {
@@ -52,7 +51,7 @@ pub fn save_full_wav_with_channels(
     debug!("Saving {}, rate {}", filename, sample_rate);
     let mut writer = hound::WavWriter::create(&filename, spec).unwrap();
 
-    for (index, d) in data.iter().enumerate() {
+    for d in data.iter() {
         // if (short_wav && index > RING_BUFFER_SIZE / 2) || !short_wav {
         if let Err(e) = writer.write_sample(*d) {
             warn!("Error writing to wav file {:?}", e);

@@ -4,7 +4,7 @@ use crate::oww;
 use crate::oww::OwwModel;
 use crate::oww::audio::AudioFeaturesTract;
 use circular_buffer::CircularBuffer;
-use log::{error, trace, warn};
+use log::{debug, trace, warn};
 use oww::DETECTION_BUFFER_SIZE;
 use rust_embed::Embed;
 use std::io::Cursor;
@@ -71,9 +71,9 @@ impl OwwModel {
             self.last_detection_time = Instant::now();
             return (true, average_detection_probability);
         }
-        // if average_detection_probability > 0.1 {
-        //     debug!("Prob {}, avg {} since {:?}", probability, average_detection_probability, since_last_detection);
-        // }
+        if average_detection_probability > 0.1 {
+            debug!("Prob {}, avg {} since {:?}", probability, average_detection_probability, since_last_detection);
+        }
         (false, average_detection_probability)
     }
 
@@ -93,12 +93,7 @@ impl OwwModel {
 
     pub fn new(model_type: SpeechUnlockType, threshold: f32) -> Result<OwwModel, String> {
         let model_data = match model_type {
-            // SpeechUnlockType::OpenWakeWordHugo => &crate::oww::oww_model::SpeechModels::get("alexa.onnx").unwrap().data,
             SpeechUnlockType::OpenWakeWordAlexa => &crate::oww::oww_model::SpeechModels::get("alexa.onnx").unwrap().data,
-            _ => {
-                error!("Invalid model type");
-                return Err("Invalid model".into());
-            }
         };
 
         let model_unlock_word = match model_type {

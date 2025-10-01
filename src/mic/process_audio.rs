@@ -5,19 +5,18 @@ use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 use crate::chunk::{ChannelsData, ChannelsVec, Chunk};
 
-pub fn resample_into_chunks(input: &[f32], buffer: &Arc<Mutex<Vec<f32>>>, channels: usize, mut resamplers: &mut Resamplers) -> Vec<Chunk> {
+pub fn resample_into_chunks(input: &[f32], buffer: &Arc<Mutex<Vec<f32>>>, channels: usize, resamplers: &mut Resamplers) -> Vec<Chunk> {
     let mut data_buffer = buffer.lock().unwrap();
 
     data_buffer.extend(input);
 
     let mut chunks = vec![];
-    // println!("Resampler {:?} ", resampler);
 
     while data_buffer.len() >= resamplers.chunk_for_resampling * channels {
         let input: Vec<f32> = data_buffer.drain(0..resamplers.chunk_for_resampling * channels).collect();
 
         let resampled_data = if resamplers.resample_rate != 1.0 {
-            resample_audio(&input, &mut resamplers, channels).expect("resampling error")
+            resample_audio(&input, resamplers, channels).expect("resampling error")
         } else {
             input.to_vec()
         };

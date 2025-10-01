@@ -4,13 +4,11 @@ use log::{debug, info, warn};
 use std::process::exit;
 use std::sync::{Arc, Mutex};
 use oww_rs::config::SpeechUnlockType::{OpenWakeWordAlexa};
+use oww_rs::mic::converters::i16_to_f32;
 use oww_rs::mic::mic_config::find_best_config;
 use oww_rs::mic::process_audio::resample_into_chunks;
 use oww_rs::mic::resampler::make_resampler;
 use oww_rs::oww::{OwwModel, OWW_MODEL_CHUNK_SIZE};
-
-
-const MODEL_SAMPLE_RATE: u32 = 16000;
 
 /// Demonstrating the lib usage with cpal streaming from microphine. The code here uses cpal
 /// to connect to different data types from microphones and trying to convert it to model's
@@ -56,7 +54,7 @@ fn main() -> Result<(), anyhow::Error> {
                 for chunk in chunks {
                     let d = model.detection(chunk.data_f32.first().clone());
                     if d.detected {
-                        println!("Result {:?}", d);
+                        println!("Result f32 {:?}", d);
                     }
                 }
             },
@@ -67,18 +65,22 @@ fn main() -> Result<(), anyhow::Error> {
             &config,
             move |data: &[i16], _: &_| {
                 // Convert i16 to f32
-                let samples: Vec<f32> = data.iter().map(|&s| s as f32).collect();
-                let _chunk = resample_into_chunks(&samples, &buffer_clone, channels, &mut resampler);
+                let samples: Vec<f32> = data.iter().map(i16_to_f32).collect();
+                let chunks = resample_into_chunks(&samples, &buffer_clone, channels, &mut resampler);
+                for chunk in chunks {
+                    let d = model.detection(chunk.data_f32.first().clone());
+                    if d.detected {
+                        println!("Result i16 {:?}", d);
+                    }
+                }
             },
             err_fn,
             None,
         )?,
         SampleFormat::U16 => device.build_input_stream(
             &config,
-            move |data: &[u16], _: &_| {
-                // Convert u16 to f32
-                let samples: Vec<f32> = data.iter().map(|&s| ((s as f32 / u16::MAX as f32) * 2.0) - 1.0).collect();
-                let chunk = resample_into_chunks(&samples, &buffer_clone, channels, &mut resampler);
+            move |_data: &[u16], _: &_| {
+                panic!("U16 format is not supported");
             },
             err_fn,
             None,
