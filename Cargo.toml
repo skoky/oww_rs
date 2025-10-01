@@ -2,7 +2,8 @@
 name = "oww-rs"
 version = "0.0.1"
 edition = "2021"
-
+license = "MIT"
+description = "Minimalistic version of the OpenWakeWord inference in Rust and ONNX runtime"
 [lib]
 crate-type = ["lib"]
 
