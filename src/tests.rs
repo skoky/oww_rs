@@ -1,24 +1,28 @@
-mod tests {
-    use ndarray::{arr2, Ix2};
-    use crate::audio::AudioFeatures;
-    use crate::CHUNK;
+use crate::load_wav;
+use crate::oww::OWW_MODEL_CHUNK_SIZE;
+use crate::oww::audio::{AudioFeaturesTract, FEATURE_BUFFER_SIZE};
+use log::info;
+use ndarray::{Ix2, arr2};
 
-    #[test]
-    fn test_mels() {
-        let mut audio = AudioFeatures::new();
+#[test]
+fn test_mels2() {
+    let mut audio = AudioFeaturesTract::create_default();
 
-        let sample_data = [0f32; 64000];
-        let mels = audio.get_melspectrogram(&arr2(&[sample_data])).unwrap();
-        let dim = mels.clone().into_dimensionality::<Ix2>().unwrap().dim();
-        assert_eq!(dim, (397, 32));
-    }
+    let sample_data = [0f32; 1280];
+    let mels = audio.get_melspectrogram(&sample_data).unwrap();
+    assert_eq!(mels.shape(), [5, 32]);
+}
 
-    #[test]
-    fn test_embeddings() {
-        let mut audio = AudioFeatures::new();
-        let sample_data = [0f32; CHUNK];
-        let embeddings = audio.get_audio_features(sample_data.to_vec()).unwrap();
-        let dim = embeddings.into_dimensionality::<Ix2>().unwrap().dim();
-        assert_eq!(dim, (41, 96))
+#[test]
+fn test_embeddings2() {
+    let mut audio = AudioFeaturesTract::create_default();
+
+    let sample_data: Vec<f32> = load_wav("testing_data/testing_2x_hugo.wav").unwrap();
+
+    info!("Sample data size {:?}", sample_data.len());
+    let mut chunk_no = 1;
+    for chunk in sample_data.chunks_exact(OWW_MODEL_CHUNK_SIZE) {
+        let embeddings = audio.get_audio_features(chunk).unwrap();
+        assert_eq!(embeddings.shape(), [16, 96]);
     }
 }
