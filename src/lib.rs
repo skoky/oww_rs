@@ -26,7 +26,6 @@ pub mod save;
 mod tests;
 
 pub mod mic;
-mod model_tests;
 pub mod chunk;
 
 pub const VOICE_SAMPLE_RATE: usize = 16000;

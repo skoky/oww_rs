@@ -10,6 +10,7 @@ pub fn i16_to_f32(sample: &i16) -> f32 {
     *sample as f32 / 32768.0
 }
 
+#[cfg(test)]
 mod tests {
     use crate::mic::converters::{f32_to_i16, i16_to_f32};
 
@@ -23,4 +24,5 @@ mod tests {
             assert_relative_eq!(*x as f32, y as f32, epsilon = 1.0);
         }
     }
+
 }
