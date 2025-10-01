@@ -12,11 +12,11 @@ pv_recorder = "1.2.3"
 ndarray = "0.16"
 ort = "2.0.0-rc.10"
 rust-embed = "8.5"
-log = "*"
-env_logger = "*"
+log = "0.4"
+env_logger = "0.11"
 chrono = "0.4"
 circular-buffer = "0.1"
-hound = "*"
+hound = "3.5"
 
 [dev-dependencies]
 tokio = { version = "1.41", features = ["full"] }
