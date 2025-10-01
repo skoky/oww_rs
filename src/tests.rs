@@ -1,24 +1,14 @@
-mod tests {
-    use ndarray::{arr2, Ix2};
-    use crate::audio::AudioFeatures;
-    use crate::CHUNK;
+use log::info;
+use crate::load_wav;
+use crate::oww::audio::AudioFeaturesTract;
+use crate::oww::OWW_MODEL_CHUNK_SIZE;
 
-    #[test]
-    fn test_mels() {
-        let mut audio = AudioFeatures::new();
+#[test]
+fn test_mels2() {
+    let mut audio = AudioFeaturesTract::create_default();
 
-        let sample_data = [0f32; 64000];
-        let mels = audio.get_melspectrogram(&arr2(&[sample_data])).unwrap();
-        let dim = mels.clone().into_dimensionality::<Ix2>().unwrap().dim();
-        assert_eq!(dim, (397, 32));
-    }
-
-    #[test]
-    fn test_embeddings() {
-        let mut audio = AudioFeatures::new();
-        let sample_data = [0f32; CHUNK];
-        let embeddings = audio.get_audio_features(sample_data.to_vec()).unwrap();
-        let dim = embeddings.into_dimensionality::<Ix2>().unwrap().dim();
-        assert_eq!(dim, (41, 96))
-    }
+    let sample_data = [0f32; 1280];
+    let mels = audio.get_melspectrogram(&sample_data).unwrap();
+    assert_eq!(mels.shape(), [5, 32]);
 }
+

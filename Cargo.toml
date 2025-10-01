@@ -4,19 +4,30 @@ version = "0.0.1"
 edition = "2021"
 license = "MIT"
 description = "Minimalistic version of the OpenWakeWord inference in Rust and ONNX runtime"
+
 [lib]
 crate-type = ["lib"]
 
 [dependencies]
-pv_recorder = "1.2.3"
-ndarray = "0.16"
-ort = "2.0.0-rc.10"
-rust-embed = "8.5"
-log = "0.4"
 env_logger = "0.11"
-chrono = "0.4"
-circular-buffer = "0.1"
+log = "0.4"
+ndarray = "0.16"
+tokio = "1"
+tokio-util = "0"
 hound = "3.5"
+circular-buffer = "0.1"
+chrono = "0.4"
+confy = "0.6"
+serde = "0.9"
+serde_derive = "0.9"
+rust-embed = "8.5"
+crossbeam = "0.8"
+tract-core = "0.22"
+tract-onnx = "0.22"
+cpal = "0.16"
+rubato = "0.16"
+approx = "0.5"
 
 [dev-dependencies]
-tokio = { version = "1.41", features = ["full"] }
+anyhow = "1"
+symphonia = { version = "0.5.4", features = ["all-codecs", "all-formats"] }
