@@ -117,42 +117,21 @@ impl MicHandlerCpal {
 
         let timeout = Some(Duration::from_millis(80));
 
-        let stream = match sample_format {
-            SampleFormat::F32 => {
-                let tx = tx.clone();
-                device.build_input_stream(
-                    &config,
-                    move |data: &[f32], _info: &cpal::InputCallbackInfo| {
-                        resample_into_chunks(data, &buffer_clone, channels, &mut resamplers).into_iter().for_each(|chunk| {
-                            if let Err(_) = tx.try_send(chunk) {
-                                warn!("Model worker channel full, dropping chunk");
-                            }
-                        })
-                    },
-                    err_fn,
-                    timeout,
-                )?
+        let tx = tx.clone();
+        let stream = build_input_stream(
+            &device,
+            &config,
+            sample_format,
+            move |data_f32| {
+                resample_into_chunks(data_f32, &buffer_clone, channels, &mut resamplers).into_iter().for_each(|chunk| {
+                    if let Err(_) = tx.try_send(chunk) {
+                        warn!("Model worker channel full, dropping chunk");
+                    }
+                })
             },
-            SampleFormat::I16 => {
-                let tx = tx.clone();
-                device.build_input_stream(
-                    &config,
-                    move |data: &[i16], _: &_| {
-                        // Convert i16 to f32
-                        let data_f32: Vec<f32> = data.iter().map(i16_to_f32).collect();
-
-                        resample_into_chunks(&data_f32, &buffer_clone, channels, &mut resamplers).into_iter().for_each(|chunk| {
-                            if let Err(_) = tx.try_send(chunk) {
-                                warn!("Model worker channel full, dropping chunk");
-                            }
-                        })
-                    },
-                    err_fn,
-                    timeout,
-                )?
-            },
-            _ => return Err("Unsupported sample format".to_string().into()),
-        };
+            err_fn,
+            timeout,
+        )?;
 
         stream.play()?;
 
@@ -187,6 +166,38 @@ impl MicHandlerCpal {
             }
         }
     }
+}
+
+pub fn build_input_stream<F>(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    sample_format: SampleFormat,
+    mut process_data: F,
+    err_fn: impl FnMut(cpal::StreamError) + Send + 'static,
+    timeout: Option<Duration>,
+) -> Result<cpal::Stream, Box<dyn Error>>
+where
+    F: FnMut(&[f32]) + Send + 'static,
+{
+    let stream = match sample_format {
+        SampleFormat::F32 => device.build_input_stream(
+            config,
+            move |data: &[f32], _| process_data(data),
+            err_fn,
+            timeout,
+        )?,
+        SampleFormat::I16 => device.build_input_stream(
+            config,
+            move |data: &[i16], _| {
+                let data_f32: Vec<f32> = data.iter().map(i16_to_f32).collect();
+                process_data(&data_f32);
+            },
+            err_fn,
+            timeout,
+        )?,
+        _ => return Err("Unsupported sample format".into()),
+    };
+    Ok(stream)
 }
 
 pub(crate) fn handle_detect(
