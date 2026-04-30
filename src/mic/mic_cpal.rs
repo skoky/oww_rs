@@ -31,7 +31,7 @@ impl MicHandlerCpal {
     pub fn default_mic_name() -> Result<String, String> {
         let host = cpal::default_host();
         let device = host.default_input_device().ok_or("No mic available")?;
-        device.name().map_err(|e| e.to_string())
+        device.description().map(|d| d.name().to_string()).map_err(|e| e.to_string())
     }
 
     pub(crate) fn new(
@@ -54,7 +54,7 @@ impl MicHandlerCpal {
             Some(mic) => mic,
         };
         let mut last_mic_name = "".to_string();
-        match device.name() {
+        match device.description() {
             Ok(name) => {
                 debug!("Input device: {}", name);
             }
@@ -78,7 +78,7 @@ impl MicHandlerCpal {
         let buffer_clone = buffer.clone();
 
         // Store the original sample rate and channels
-        let original_sample_rate = config.sample_rate.0;
+        let original_sample_rate = config.sample_rate;
         let channels = config.channels as usize;
 
         // Create the input stream

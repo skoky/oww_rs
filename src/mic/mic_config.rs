@@ -1,6 +1,6 @@
 use crate::VOICE_SAMPLE_RATE;
 use cpal::traits::DeviceTrait;
-use cpal::{SampleFormat, SampleRate, StreamConfig, SupportedStreamConfigRange};
+use cpal::{SampleFormat, StreamConfig, SupportedStreamConfigRange};
 use log::{debug, error, info};
 
 pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFormat), Box<dyn std::error::Error>> {
@@ -40,12 +40,12 @@ pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFo
     let desired_config = supported_configs.iter().find(|config| {
         config.channels() == 1
             && config.sample_format() == SampleFormat::F32
-            && config.min_sample_rate().0 <= desired_sample_rate
-            && config.max_sample_rate().0 >= desired_sample_rate
+            && config.min_sample_rate() <= desired_sample_rate
+            && config.max_sample_rate() >= desired_sample_rate
     });
 
     if let Some(config_range) = desired_config {
-        let config = config_range.with_sample_rate(SampleRate(desired_sample_rate));
+        let config = config_range.with_sample_rate(desired_sample_rate);
         debug!("Found desired configuration (16kHz, f32, mono)");
         return Ok((config.clone().into(), config_range.sample_format()));
     }
@@ -75,7 +75,7 @@ pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFo
     // Try to find any mono configuration with sample rate 16khz
     let mono_16khz_config = supported_configs
         .iter()
-        .find(|config| config.channels() == 1 && config.min_sample_rate().0 <= desired_sample_rate && config.max_sample_rate().0 >= desired_sample_rate);
+        .find(|config| config.channels() == 1 && config.min_sample_rate() <= desired_sample_rate && config.max_sample_rate() >= desired_sample_rate);
 
     if let Some(config_range) = mono_16khz_config {
         let config = config_range.with_max_sample_rate();

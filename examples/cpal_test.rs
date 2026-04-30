@@ -18,7 +18,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Initialize CPAL
     let host = cpal::default_host();
     let device = host.default_input_device().expect("No input device available");
-    match device.name() {
+    match device.description() {
         Ok(name) => {
             debug!("Input device: {}", name);
         }
@@ -36,7 +36,7 @@ fn main() -> Result<(), anyhow::Error> {
     let buffer_clone = buffer.clone();
 
     // Store the original sample rate and channels
-    let original_sample_rate = config.sample_rate.0 as f32;
+    let original_sample_rate = config.sample_rate as f32;
     let channels = config.channels as usize;
 
     // Create the input stream
