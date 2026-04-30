@@ -93,11 +93,21 @@ impl OwwModel {
 
     pub fn new(model_type: SpeechUnlockType, threshold: f32) -> Result<OwwModel, String> {
         let model_data = match model_type {
-            SpeechUnlockType::OpenWakeWordAlexa => &crate::oww::oww_model::SpeechModels::get("alexa.onnx").unwrap().data,
+            SpeechUnlockType::OpenWakeWordAlexa => {
+                &crate::oww::oww_model::SpeechModels::get("alexa.onnx")
+                    .unwrap()
+                    .data
+            }
+            SpeechUnlockType::OpenWakeWordHeyMycroft => {
+                &crate::oww::oww_model::SpeechModels::get("hey_mycroft_v0.1.onnx")
+                    .unwrap()
+                    .data
+            }
         };
 
         let model_unlock_word = match model_type {
             SpeechUnlockType::OpenWakeWordAlexa => "Alexa".to_string(),
+            SpeechUnlockType::OpenWakeWordHeyMycroft => "Hey Mycroft".to_string(),
         };
         let detections_buffer = CircularBuffer::<DETECTION_BUFFER_SIZE, f32>::new();
 
