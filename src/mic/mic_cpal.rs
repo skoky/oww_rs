@@ -13,11 +13,12 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use log::{debug, error, info, warn};
 use std::error::Error;
 use std::sync::{Arc, Mutex};
-use std::thread::sleep;
+use std::thread::{sleep, spawn};
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use crate::chunk::{Chunk, ChunkType};
+use std::sync::mpsc;
 
 pub(crate) const MODEL_SAMPLE_RATE: u32 = 16000;
 
@@ -46,7 +47,7 @@ impl MicHandlerCpal {
         })
     }
 
-    pub fn loop_now_sync(&mut self,  cancellation_token: CancellationToken) -> Result<bool, Box<dyn Error>> {
+    pub fn loop_now_sync(&mut self, cancellation_token: CancellationToken) -> Result<bool, Box<dyn Error>> {
         // Initialize CPAL
         let host = cpal::default_host();
         let device = match host.default_input_device() {
@@ -88,49 +89,69 @@ impl MicHandlerCpal {
 
         let mut resamplers = make_resampler(original_sample_rate, model_chunk_size as _, channels)?;
 
-        let model3 = self.model.clone();
-        let chunks_sender = self.chunks_sender.clone();
+        let (tx, rx) = mpsc::sync_channel::<Chunk>(100);
+        
+        let model_worker = self.model.clone();
+        let chunks_sender_worker = self.chunks_sender.clone();
+        let quite_threshold = self.unlock_config.quite_threshold;
+        let cancellation_token_worker = cancellation_token.clone();
+
+        spawn(move || {
+            let mut ring_buffer = CircularBuffer::<{ RING_BUFFER_SIZE }, Chunk>::boxed();
+            while !cancellation_token_worker.is_cancelled() {
+                if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(100)) {
+                    ring_buffer.push_back(chunk.clone());
+                    let detection = handle_detect(
+                        &chunk,
+                        chunks_sender_worker.clone(),
+                        model_worker.clone(),
+                    );
+                    if detection.detected {
+                        let sum_rms: u64 = ring_buffer.iter().map(|c| c.rms.abs() as u64).sum();
+                        let avg_rms = (sum_rms / ring_buffer.len() as u64) as i16;
+                        println!("Detection {:?}, avg_rms {} limit {}", detection, avg_rms, quite_threshold);
+                    }
+                }
+            }
+            debug!("Model worker thread finished");
+        });
+
         let timeout = Some(Duration::from_millis(80));
-        let quiet_threshold = self.unlock_config.quite_threshold;
-        let ring_buffer = Arc::new(Mutex::new(CircularBuffer::<{ RING_BUFFER_SIZE }, Chunk>::boxed()));
 
         let stream = match sample_format {
-            SampleFormat::F32 => device.build_input_stream(
-                &config,
-                move |data: &[f32], _info: &cpal::InputCallbackInfo| {
-                    resample_into_chunks(data, &buffer_clone, channels, &mut resamplers).iter().for_each(|chunk| {
-                        ring_buffer.lock().unwrap().push_back(chunk.clone());
-                        handle_detect(
-                            chunk,
-                            chunks_sender.clone(),
-                            model3.clone(),
-                            ring_buffer.lock().unwrap().to_vec(),
-                            quiet_threshold,
-                        );
-                    })
-                },
-                err_fn,
-                timeout,
-            )?,
-            SampleFormat::I16 => device.build_input_stream(
-                &config,
-                move |data: &[i16], _: &_| {
-                    // Convert i16 to f32
-                    let data_f32: Vec<f32> = data.iter().map(i16_to_f32).collect();
+            SampleFormat::F32 => {
+                let tx = tx.clone();
+                device.build_input_stream(
+                    &config,
+                    move |data: &[f32], _info: &cpal::InputCallbackInfo| {
+                        resample_into_chunks(data, &buffer_clone, channels, &mut resamplers).into_iter().for_each(|chunk| {
+                            if let Err(_) = tx.try_send(chunk) {
+                                warn!("Model worker channel full, dropping chunk");
+                            }
+                        })
+                    },
+                    err_fn,
+                    timeout,
+                )?
+            },
+            SampleFormat::I16 => {
+                let tx = tx.clone();
+                device.build_input_stream(
+                    &config,
+                    move |data: &[i16], _: &_| {
+                        // Convert i16 to f32
+                        let data_f32: Vec<f32> = data.iter().map(i16_to_f32).collect();
 
-                    resample_into_chunks(&data_f32, &buffer_clone, channels, &mut resamplers).iter().for_each(|chunk| {
-                        handle_detect(
-                            chunk,
-                            chunks_sender.clone(),
-                            model3.clone(),
-                            ring_buffer.lock().unwrap().to_vec(),
-                            quiet_threshold,
-                        );
-                    })
-                },
-                err_fn,
-                timeout,
-            )?,
+                        resample_into_chunks(&data_f32, &buffer_clone, channels, &mut resamplers).into_iter().for_each(|chunk| {
+                            if let Err(_) = tx.try_send(chunk) {
+                                warn!("Model worker channel full, dropping chunk");
+                            }
+                        })
+                    },
+                    err_fn,
+                    timeout,
+                )?
+            },
             _ => return Err("Unsupported sample format".to_string().into()),
         };
 
@@ -139,7 +160,7 @@ impl MicHandlerCpal {
         let mut check_mic_count: u64 = 0;
         while !cancellation_token.is_cancelled() {
             check_mic_count += 1;
-            if check_mic_count.is_multiple_of(20) {
+            if check_mic_count % 20 == 0 {
                 let mic_name = self.check_mic();
                 match mic_name {
                     Some(mic_name) if last_mic_name != mic_name => {
@@ -173,8 +194,6 @@ pub(crate) fn handle_detect(
     chunk: &Chunk,
     chunks_sender: broadcast::Sender<ChunkType>,
     model: Arc<Mutex<Models>>,
-    buffered_chunks: Vec<Chunk>,
-    quite_threshold: i16,
 ) -> Detection {
     let _ = chunks_sender.send(chunk.clone());
 
@@ -205,10 +224,5 @@ pub(crate) fn handle_detect(
         .max_by(|d1, d2| d1.probability.partial_cmp(&d2.probability).unwrap())
         .unwrap();
 
-    if detection.detected {
-        let rmss: Vec<i16> = buffered_chunks.iter().map(|c| c.rms).collect();
-        let max_rms = calculate_rms(rmss.as_ref());
-        println!("Detection {:?}, max_rms {} limit {}", detection, max_rms, quite_threshold);
-    }
     detection
 }
