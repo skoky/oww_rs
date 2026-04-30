@@ -1,6 +1,6 @@
 [package]
 name = "oww-rs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 description = "Minimalistic version of the OpenWakeWord inference in Rust and ONNX runtime"
@@ -15,13 +15,13 @@ log = "0.4"
 tokio = "1"
 tokio-util = "0"
 hound = "3.5"
-circular-buffer = "0.1"
+circular-buffer = "1.2"
 chrono = "0.4"
 rust-embed = "8.5"
 tract-core = "0.22"
 tract-onnx = "0.22"
-cpal = "0.16"
-rubato = "0.16"
+cpal = "0.17"
+rubato = { version = "2.0.0", features = ["fft_resampler"] }
 approx = "0.5"
 
 [dev-dependencies]

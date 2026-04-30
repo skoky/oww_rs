@@ -20,7 +20,7 @@ fn main() -> Result<(), anyhow::Error> {
     let device = host
         .default_input_device()
         .expect("No input device available");
-    match device.name() {
+    match device.description() {
         Ok(name) => {
             debug!("Input device: {}", name);
         }
@@ -32,7 +32,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     let (mut config, sample_format) = find_best_config(&device).unwrap();
     // Prefer 48000 Hz for best real-time performance if available
-    config.sample_rate = cpal::SampleRate(48000);
+    config.sample_rate = 48000;
     info!("Selected input config (forced 48kHz): {:?}", config);
 
     // Create a buffer to store audio data
@@ -40,7 +40,7 @@ fn main() -> Result<(), anyhow::Error> {
     let buffer_clone = buffer.clone();
 
     // Store the original sample rate and channels
-    let original_sample_rate = config.sample_rate.0 as f32;
+    let original_sample_rate = config.sample_rate as f32;
     println!("{:?}", original_sample_rate);
     let channels = 1;
 
