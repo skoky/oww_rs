@@ -5,7 +5,6 @@ use crate::mic::mic_config::find_best_config;
 use crate::mic::process_audio::resample_into_chunks;
 use crate::mic::resampler::make_resampler;
 use crate::model::{Detection};
-use crate::rms::calculate_rms;
 use crate::Models;
 use circular_buffer::CircularBuffer;
 use cpal::SampleFormat;
