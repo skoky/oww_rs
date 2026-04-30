@@ -10,7 +10,12 @@ use oww_rs::mic::process_audio::resample_into_chunks;
 use oww_rs::mic::resampler::make_resampler;
 use oww_rs::oww::{OwwModel, OWW_MODEL_CHUNK_SIZE};
 
-/// Demonstrating the lib usage with cpal streaming from microphine. The code here uses cpal
+use oww_rs::mic::mic_cpal::{build_input_stream};
+use std::time::Duration;
+use std::sync::mpsc;
+use std::thread;
+
+/// Demonstrating the lib usage with cpal streaming from microphone. The code here uses cpal
 /// to connect to different data types from microphones and trying to convert it to model's
 /// required format that is sample rate 16kHz and f32 data format
 fn main() -> Result<(), anyhow::Error> {
@@ -46,47 +51,32 @@ fn main() -> Result<(), anyhow::Error> {
 
     let mut resampler = make_resampler(original_sample_rate as _, OWW_MODEL_CHUNK_SIZE as _, channels).unwrap();
 
-    let stream = match sample_format {
-        SampleFormat::F32 => device.build_input_stream(
-            &config,
-            move |data: &[f32], _: &_| {
-                let chunks = resample_into_chunks(data, &buffer_clone, channels, &mut resampler);
-                for chunk in chunks {
-                    let d = model.detection(chunk.data_f32.first().clone());
-                    if d.detected {
-                        println!("Result f32 {:?}", d);
-                    }
+    let (tx, rx) = mpsc::sync_channel(100);
+
+    thread::spawn(move || {
+        while let Ok(chunk) = rx.recv() {
+            let d = model.detection(chunk);
+            if d.detected {
+                println!("Result {:?}", d);
+            }
+        }
+    });
+
+    let stream = build_input_stream(
+        &device,
+        &config,
+        sample_format,
+        move |data| {
+            let chunks = resample_into_chunks(data, &buffer_clone, channels, &mut resampler);
+            for chunk in chunks {
+                if let Err(_) = tx.try_send(chunk.data_f32.first().clone()) {
+                    warn!("Worker channel full, dropping chunk");
                 }
-            },
-            err_fn,
-            None,
-        )?,
-        SampleFormat::I16 => device.build_input_stream(
-            &config,
-            move |data: &[i16], _: &_| {
-                // Convert i16 to f32
-                let samples: Vec<f32> = data.iter().map(i16_to_f32).collect();
-                let chunks = resample_into_chunks(&samples, &buffer_clone, channels, &mut resampler);
-                for chunk in chunks {
-                    let d = model.detection(chunk.data_f32.first().clone());
-                    if d.detected {
-                        println!("Result i16 {:?}", d);
-                    }
-                }
-            },
-            err_fn,
-            None,
-        )?,
-        SampleFormat::U16 => device.build_input_stream(
-            &config,
-            move |_data: &[u16], _: &_| {
-                panic!("U16 format is not supported");
-            },
-            err_fn,
-            None,
-        )?,
-        _ => return Err(anyhow::anyhow!("Unsupported sample format")),
-    };
+            }
+        },
+        err_fn,
+        None,
+    ).unwrap();
 
     stream.play()?;
 
