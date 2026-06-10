@@ -1,5 +1,5 @@
-use crate::mic::converters::f32_to_i16;
-use crate::mic::resampler::{Resamplers, resample_audio};
+use crate::converters::f32_to_i16;
+use crate::resampler::{Resamplers, resample_audio};
 use crate::rms::calculate_rms;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};

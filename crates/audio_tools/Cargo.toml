@@ -1,0 +1,21 @@
+[package]
+name = "audio_tools"
+description = "Reusable microphone capture, resampling and audio conversion tools (16 kHz mono pipeline)"
+keywords = ["audio", "microphone", "resampling", "cpal", "dsp"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+chrono.workspace = true
+circular-buffer.workspace = true
+cpal.workspace = true
+hound.workspace = true
+log.workspace = true
+rubato.workspace = true
+
+[dev-dependencies]
+approx.workspace = true

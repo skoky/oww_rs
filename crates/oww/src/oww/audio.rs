@@ -81,7 +81,7 @@ impl AudioFeaturesTract {
         let out_tensor = outputs[0].clone().into_tensor();
         trace!("2: get_melspectrogram with output tensor {:?}", out_tensor.shape());
         let resized = out_tensor.clone().into_shape(&[5, 32])?;
-        let a = resized.into_array::<f32>()?.into_owned();
+        let a = resized.into_plain_array::<f32>()?.into_owned();
         let updated = a.mapv(|v| (v / 10.0) + 2.0).into_tensor();
         Ok(updated)
     }

@@ -1,28 +1,24 @@
-[package]
-name = "oww-rs"
-version = "0.2.0"
+[workspace]
+members = ["crates/audio_tools", "crates/oww"]
+resolver = "2"
+
+[workspace.package]
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
-description = "Minimalistic version of the OpenWakeWord inference in Rust and ONNX runtime"
-keywords = ["stopword", "speech", "alexa", "detection", "onnx"]
 
-[lib]
-crate-type = ["lib"]
-
-[dependencies]
+[workspace.dependencies]
+audio_tools = { path = "crates/audio_tools" }
+approx = "0.5"
+chrono = "0.4"
+circular-buffer = "0.1"
+cpal = "0.18"
 env_logger = "0.11"
+hound = "3.5"
 log = "0.4"
+rubato = { version = "3.0", features = ["fft_resampler"] }
+rust-embed = "8.5"
 tokio = "1"
 tokio-util = "0"
-hound = "3.5"
-circular-buffer = "0.1"
-chrono = "0.4"
-rust-embed = "8.5"
-tract-core = "0.22"
-tract-onnx = "0.22"
-cpal = "0.16"
-rubato = "0.16"
-approx = "0.5"
-
-[dev-dependencies]
-anyhow = "1"
+tract-core = "0.23"
+tract-onnx = "0.23"

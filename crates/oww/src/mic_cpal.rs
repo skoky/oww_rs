@@ -1,11 +1,11 @@
 use crate::config::UnlockConfig;
-use crate::mic::RING_BUFFER_SIZE;
-use crate::mic::converters::i16_to_f32;
-use crate::mic::mic_config::find_best_config;
-use crate::mic::process_audio::resample_into_chunks;
-use crate::mic::resampler::make_resampler;
+use audio_tools::RING_BUFFER_SIZE;
+use audio_tools::converters::i16_to_f32;
+use audio_tools::mic_config::find_best_config;
+use audio_tools::process_audio::resample_into_chunks;
+use audio_tools::resampler::make_resampler;
 use crate::model::{Detection};
-use crate::rms::calculate_rms;
+use audio_tools::rms::calculate_rms;
 use crate::Models;
 use circular_buffer::CircularBuffer;
 use cpal::SampleFormat;
@@ -17,9 +17,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
-use crate::chunk::{Chunk, ChunkType};
-
-pub(crate) const MODEL_SAMPLE_RATE: u32 = 16000;
+use audio_tools::chunk::{Chunk, ChunkType};
 
 pub struct MicHandlerCpal {
     model: Arc<Mutex<Models>>,
@@ -31,7 +29,7 @@ impl MicHandlerCpal {
     pub fn default_mic_name() -> Result<String, String> {
         let host = cpal::default_host();
         let device = host.default_input_device().ok_or("No mic available")?;
-        device.name().map_err(|e| e.to_string())
+        device.description().map(|d| d.name().to_string()).map_err(|e| e.to_string())
     }
 
     pub(crate) fn new(
@@ -54,9 +52,9 @@ impl MicHandlerCpal {
             Some(mic) => mic,
         };
         let mut last_mic_name = "".to_string();
-        match device.name() {
-            Ok(name) => {
-                debug!("Input device: {}", name);
+        match device.description() {
+            Ok(desc) => {
+                debug!("Input device: {}", desc.name());
             }
             Err(e) => {
                 error!("Couldn't get mic device: {:?}", e);
@@ -78,7 +76,7 @@ impl MicHandlerCpal {
         let buffer_clone = buffer.clone();
 
         // Store the original sample rate and channels
-        let original_sample_rate = config.sample_rate.0;
+        let original_sample_rate = config.sample_rate;
         let channels = config.channels as usize;
 
         // Create the input stream
@@ -96,7 +94,7 @@ impl MicHandlerCpal {
 
         let stream = match sample_format {
             SampleFormat::F32 => device.build_input_stream(
-                &config,
+                config.clone(),
                 move |data: &[f32], _info: &cpal::InputCallbackInfo| {
                     resample_into_chunks(data, &buffer_clone, channels, &mut resamplers).iter().for_each(|chunk| {
                         ring_buffer.lock().unwrap().push_back(chunk.clone());
@@ -113,7 +111,7 @@ impl MicHandlerCpal {
                 timeout,
             )?,
             SampleFormat::I16 => device.build_input_stream(
-                &config,
+                config.clone(),
                 move |data: &[i16], _: &_| {
                     // Convert i16 to f32
                     let data_f32: Vec<f32> = data.iter().map(i16_to_f32).collect();

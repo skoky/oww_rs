@@ -12,7 +12,7 @@ pub fn i16_to_f32(sample: &i16) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::mic::converters::{f32_to_i16, i16_to_f32};
+    use crate::converters::{f32_to_i16, i16_to_f32};
 
     #[test]
     fn test_conversion() {

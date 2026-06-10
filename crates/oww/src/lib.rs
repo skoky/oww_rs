@@ -1,5 +1,5 @@
-use crate::mic::converters::i16_to_f32;
-use crate::mic::mic_cpal::MicHandlerCpal;
+use audio_tools::converters::i16_to_f32;
+use crate::mic_cpal::MicHandlerCpal;
 use crate::model::{Detection, Model, new_model};
 use hound::{SampleFormat, WavReader};
 use log::{debug, info, warn};
@@ -13,27 +13,18 @@ use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
-use tract_core::internal::{Graph, RunnableModel, TypedFact, TypedOp};
-use crate::chunk::ChunkType;
+use tract_core::internal::{RunnableModel, TypedFact, TypedOp};
+use audio_tools::chunk::ChunkType;
 use crate::config::UnlockConfig;
 
 pub mod config;
 pub mod info;
+pub mod mic_cpal;
 mod model;
 pub mod oww;
-pub mod rms;
-pub mod save;
 mod tests;
 
-pub mod mic;
-pub mod chunk;
-
-pub const VOICE_SAMPLE_RATE: usize = 16000;
-pub const BUFFER_SECS: usize = 4;
-
-pub const RMS_BUFFER_SIZE: usize = 16; // 1 secs+ buffer size
-
-type ModelType = RunnableModel<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box<dyn TypedOp>>>;
+type ModelType = Arc<RunnableModel<TypedFact, Box<dyn TypedOp>>>;
 
 pub struct Models {
     pub(crate) model1: Box<dyn Model>,

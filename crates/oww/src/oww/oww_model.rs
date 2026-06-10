@@ -11,6 +11,7 @@ use std::io::Cursor;
 use std::time::Instant;
 use tract_core::internal::TVec;
 use tract_core::prelude::multithread::{self, Executor};
+use tract_core::model::IntoRunnable;
 use tract_core::prelude::{Framework, TValue};
 use tract_onnx::prelude::{InferenceModelExt, IntoTensor, Tensor as TractTensor, tvec};
 
@@ -58,7 +59,7 @@ impl OwwModel {
         trace!("2: output {:?}", out[0].shape()); // [1,1]
 
         let t = out.clone()[0].clone().into_tensor().cast_to::<f32>().unwrap().into_owned();
-        let probability = t.as_slice::<f32>().unwrap()[0];
+        let probability = t.into_plain_array::<f32>().unwrap().as_slice().unwrap()[0];
         trace!("2:Tract probability: {:?}", probability);
 
         self.detections_buffer.push_back(probability);
