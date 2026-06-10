@@ -107,4 +107,8 @@ impl Chunk {
 
         interleaved
     }
+
+    pub fn number_of_channels(&self) -> u16 {
+        self.data_i16.len() as u16
+    }
 }
