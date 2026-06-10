@@ -7,7 +7,9 @@ use circular_buffer::CircularBuffer;
 use log::{debug, trace, warn};
 use oww::DETECTION_BUFFER_SIZE;
 use rust_embed::Embed;
+use std::{fs, io};
 use std::io::Cursor;
+use std::path::Path;
 use std::time::Instant;
 use tract_core::internal::TVec;
 use tract_core::prelude::multithread::{self, Executor};
@@ -94,12 +96,39 @@ impl OwwModel {
 
     pub fn new(model_type: SpeechUnlockType, threshold: f32) -> Result<OwwModel, String> {
         let model_data = match model_type {
-            SpeechUnlockType::OpenWakeWordAlexa => &crate::oww::oww_model::SpeechModels::get("alexa.onnx").unwrap().data,
+            SpeechUnlockType::OpenWakeWordAlexa => {
+                &crate::oww::oww_model::SpeechModels::get("alexa.onnx")
+                    .unwrap()
+                    .data
+            }
+            SpeechUnlockType::OpenWakeWordHeyMycroft => {
+                &crate::oww::oww_model::SpeechModels::get("hey_mycroft_v0.1.onnx")
+                    .unwrap()
+                    .data
+            }
         };
 
         let model_unlock_word = match model_type {
             SpeechUnlockType::OpenWakeWordAlexa => "Alexa".to_string(),
+            SpeechUnlockType::OpenWakeWordHeyMycroft => "Hey Mycroft".to_string(),
         };
+        let detections_buffer = CircularBuffer::<DETECTION_BUFFER_SIZE, f32>::new();
+
+        let mut rdr = Cursor::new(model_data);
+
+        let tract_model = tract_onnx::onnx().model_for_read(&mut rdr).unwrap().into_optimized().unwrap().into_runnable().unwrap();
+        Ok(OwwModel {
+            audio: AudioFeaturesTract::create_default(),
+            tract_model,
+            threshold,
+            last_detection_time: Instant::now(),
+            detections_buffer,
+            model_unlock_word,
+        })
+    }
+
+    pub fn from_file<P: AsRef<Path>>(path: P, model_unlock_word: String, threshold: f32) -> io::Result<OwwModel> {
+        let model_data = fs::read(path)?;
         let detections_buffer = CircularBuffer::<DETECTION_BUFFER_SIZE, f32>::new();
 
         let mut rdr = Cursor::new(model_data);

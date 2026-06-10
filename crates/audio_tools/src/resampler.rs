@@ -4,7 +4,6 @@ use rubato::audioadapter_buffers::direct::InterleavedSlice;
 use rubato::{Fft, FixedSync, Resampler};
 use std::error::Error;
 use std::fmt::{Debug, Formatter};
-use FixedSync::Both;
 
 const HIGH_SAMPLING_RATE: usize = 48_000;
 
@@ -36,12 +35,12 @@ pub fn make_resampler(original_sample_rate: u32, model_chunk_size: u32, channels
 
         let main_sampler_input_size = (model_chunk_size as f32 * internal_rate) as usize;
 
-        let main = Fft::<f32>::new(HIGH_SAMPLING_RATE, MODEL_SAMPLE_RATE as _, main_sampler_input_size, 1, channels_count, Both)?;
+        let main = Fft::<f32>::new(HIGH_SAMPLING_RATE, MODEL_SAMPLE_RATE as _, main_sampler_input_size, 1, channels_count, FixedSync::Input)?;
 
         let upsampler_output_size = (model_chunk_size as f32 * internal_rate) as usize;
         let upsampler_input_size = (upsampler_output_size as f32 * upsampler_rate) as usize;
 
-        let upsampler = Fft::<f32>::new(original_sample_rate as _, HIGH_SAMPLING_RATE, upsampler_output_size, 1, channels_count, Both)?;
+        let upsampler = Fft::<f32>::new(original_sample_rate as _, HIGH_SAMPLING_RATE, upsampler_output_size, 1, channels_count, FixedSync::Output)?;
 
         let resamplers = Resamplers {
             main,
@@ -57,8 +56,8 @@ pub fn make_resampler(original_sample_rate: u32, model_chunk_size: u32, channels
 
         let input_chunk_size: usize = (model_chunk_size * sample_rate as u32) as usize;
 
-        let upsampler = Fft::<f32>::new(original_sample_rate as _, MODEL_SAMPLE_RATE as _, input_chunk_size, 1, channels_count, Both)?;
-        let main = Fft::<f32>::new(original_sample_rate as _, MODEL_SAMPLE_RATE as _, input_chunk_size, 1, channels_count, Both)?;
+        let upsampler = Fft::<f32>::new(original_sample_rate as _, MODEL_SAMPLE_RATE as _, input_chunk_size, 1, channels_count, FixedSync::Output)?;
+        let main = Fft::<f32>::new(original_sample_rate as _, MODEL_SAMPLE_RATE as _, input_chunk_size, 1, channels_count, FixedSync::Input)?;
 
         Ok(Resamplers {
             main,
@@ -86,8 +85,8 @@ pub fn resample_audio(data: &[f32], resamplers: &mut Resamplers, channels: usize
 
 #[cfg(test)]
 pub mod tests {
-    use crate::resampler::make_resampler;
     use crate::VOICE_SAMPLE_RATE;
+    use crate::resampler::make_resampler;
 
     #[test]
     fn test_mono_16khz() {

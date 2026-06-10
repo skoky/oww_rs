@@ -3,7 +3,7 @@ members = ["crates/audio_tools", "crates/oww"]
 resolver = "2"
 
 [workspace.package]
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 license = "MIT"
 
@@ -11,7 +11,7 @@ license = "MIT"
 audio_tools = { path = "crates/audio_tools" }
 approx = "0.5"
 chrono = "0.4"
-circular-buffer = "0.1"
+circular-buffer = "1.2"
 cpal = "0.17"
 env_logger = "0.11"
 hound = "3.5"

@@ -1,4 +1,3 @@
-use crate::config::SpeechUnlockType::{OpenWakeWordAlexa};
 use crate::config::{SpeechUnlockType, UnlockConfig};
 use crate::oww::OwwModel;
 
@@ -10,7 +9,12 @@ pub(crate) trait Model: Send + Sync {
 
 pub fn new_model(config: UnlockConfig) -> Result<Box<dyn Model>, String> {
     match config.unlock_type {
-        SpeechUnlockType::OpenWakeWordAlexa => new_oww_model(config, OpenWakeWordAlexa),
+        SpeechUnlockType::OpenWakeWordAlexa => {
+            new_oww_model(config, SpeechUnlockType::OpenWakeWordAlexa)
+        }
+        SpeechUnlockType::OpenWakeWordHeyMycroft => {
+            new_oww_model(config, SpeechUnlockType::OpenWakeWordHeyMycroft)
+        }
     }
 }
 

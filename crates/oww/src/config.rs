@@ -1,9 +1,9 @@
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum SpeechUnlockType {
     OpenWakeWordAlexa,
+    OpenWakeWordHeyMycroft,
 }
-#[derive(Debug,  Clone)]
+#[derive(Debug, Clone)]
 pub struct UnlockConfig {
     pub unlock_type: SpeechUnlockType,
     pub detection_threshold: f32,
