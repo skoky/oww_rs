@@ -94,7 +94,7 @@ impl MicHandlerCpal {
 
         let stream = match sample_format {
             SampleFormat::F32 => device.build_input_stream(
-                config.clone(),
+                &config,
                 move |data: &[f32], _info: &cpal::InputCallbackInfo| {
                     resample_into_chunks(data, &buffer_clone, channels, &mut resamplers).iter().for_each(|chunk| {
                         ring_buffer.lock().unwrap().push_back(chunk.clone());
@@ -111,7 +111,7 @@ impl MicHandlerCpal {
                 timeout,
             )?,
             SampleFormat::I16 => device.build_input_stream(
-                config.clone(),
+                &config,
                 move |data: &[i16], _: &_| {
                     // Convert i16 to f32
                     let data_f32: Vec<f32> = data.iter().map(i16_to_f32).collect();

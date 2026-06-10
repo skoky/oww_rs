@@ -48,7 +48,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     let stream = match sample_format {
         SampleFormat::F32 => device.build_input_stream(
-            config.clone(),
+            &config,
             move |data: &[f32], _: &_| {
                 let chunks = resample_into_chunks(data, &buffer_clone, channels, &mut resampler);
                 for chunk in chunks {
@@ -62,7 +62,7 @@ fn main() -> Result<(), anyhow::Error> {
             None,
         )?,
         SampleFormat::I16 => device.build_input_stream(
-            config.clone(),
+            &config,
             move |data: &[i16], _: &_| {
                 // Convert i16 to f32
                 let samples: Vec<f32> = data.iter().map(i16_to_f32).collect();
@@ -78,7 +78,7 @@ fn main() -> Result<(), anyhow::Error> {
             None,
         )?,
         SampleFormat::U16 => device.build_input_stream(
-            config.clone(),
+            &config,
             move |_data: &[u16], _: &_| {
                 panic!("U16 format is not supported");
             },
