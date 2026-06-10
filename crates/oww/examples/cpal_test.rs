@@ -28,7 +28,7 @@ fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    let (config, sample_format) = find_best_config(&device).unwrap();
+    let (config, sample_format) = find_best_config(&device, false).unwrap();
     info!("Selected input config: {:?}", config);
 
     // Create a buffer to store audio data

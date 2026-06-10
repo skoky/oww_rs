@@ -1,9 +1,19 @@
-use crate::VOICE_SAMPLE_RATE;
-use cpal::traits::DeviceTrait;
+use crate::{SAMPLE_RATE_FOR_NOISE_REDUCTION, VOICE_SAMPLE_RATE};
+use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{SampleFormat, StreamConfig, SupportedStreamConfigRange};
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
+use std::error::Error;
+use std::io;
 
-pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFormat), Box<dyn std::error::Error>> {
+pub fn default_input_device() -> Result<cpal::Device, Box<dyn Error>> {
+    cpal::default_host()
+        .default_input_device()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Could not find input device").into())
+}
+
+/// Finds the best mic config from those available. If noise reduction is enabled, search for 48 kHz/f32. If not enabled
+/// 16 kHz/f32 is sufficient for the speech model. The 48 kHz is resampled to 16 kHz later anyway.
+pub fn find_best_config(device: &cpal::Device, optimal_for_noise_reduction: bool) -> Result<(StreamConfig, SampleFormat), Box<dyn Error>> {
     #[cfg(target_os = "ios")]
     {
         let config = match device.default_input_config() {
@@ -12,7 +22,6 @@ pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFo
                 config
             }
             Err(e) => {
-                warn!("IOS Mic config not available in Simulator!");
                 return Err(e.into());
             }
         };
@@ -22,8 +31,9 @@ pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFo
 
     let supported_configs: Vec<SupportedStreamConfigRange> = match device.supported_input_configs() {
         Ok(supported_configs) => {
-            info!("supported_configs found");
-            supported_configs.collect()
+            let supported_configs: Vec<SupportedStreamConfigRange> = supported_configs.collect();
+            info!("found {} supported input configs", supported_configs.len());
+            supported_configs
         }
         Err(e) => {
             error!("error getting supported_input_configs : {:?}", e);
@@ -31,12 +41,30 @@ pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFo
         }
     };
 
-    for config in &supported_configs {
-        info!("Supported input config: {:?}", config);
+    if supported_configs.is_empty() {
+        let device_name = device
+            .description()
+            .map(|description| format!("{description:?}"))
+            .unwrap_or_else(|_| "<unknown input device>".to_string());
+        error!("input device `{device_name}` exposes no supported input configs; microphone is likely missing");
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("input device `{device_name}` has no supported input configs"),
+        )
+        .into());
     }
 
-    // Try to find a configuration with 16kHz, i16, and 1 channel
-    let desired_sample_rate = VOICE_SAMPLE_RATE as u32;
+    for config in &supported_configs {
+        trace!("Supported input config: {:?}", config);
+    }
+
+    // Prefer 16 kHz mono f32 (or 48 kHz when optimizing for noise reduction)
+    let desired_sample_rate = if optimal_for_noise_reduction {
+        SAMPLE_RATE_FOR_NOISE_REDUCTION as u32
+    } else {
+        VOICE_SAMPLE_RATE as u32
+    };
+
     let desired_config = supported_configs.iter().find(|config| {
         config.channels() == 1
             && config.sample_format() == SampleFormat::F32
@@ -46,7 +74,7 @@ pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFo
 
     if let Some(config_range) = desired_config {
         let config = config_range.with_sample_rate(desired_sample_rate);
-        debug!("Found desired configuration (16kHz, f32, mono)");
+        debug!("Found desired configuration (mono, f32, {desired_sample_rate} Hz)");
         return Ok((config.clone().into(), config_range.sample_format()));
     }
 
@@ -72,14 +100,14 @@ pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFo
         return Ok((config.into(), config_range.sample_format()));
     }
 
-    // Try to find any mono configuration with sample rate 16khz
-    let mono_16khz_config = supported_configs
+    // Try to find any mono configuration with the desired sample rate
+    let mono_desired_rate_config = supported_configs
         .iter()
         .find(|config| config.channels() == 1 && config.min_sample_rate() <= desired_sample_rate && config.max_sample_rate() >= desired_sample_rate);
 
-    if let Some(config_range) = mono_16khz_config {
+    if let Some(config_range) = mono_desired_rate_config {
         let config = config_range.with_max_sample_rate();
-        debug!("Found mono 16khz configuration with different format but good sample rate {:?}", &config);
+        debug!("Found mono configuration with different format but good sample rate {:?}", &config);
         return Ok((config.into(), config_range.sample_format()));
     }
 
@@ -88,7 +116,7 @@ pub fn find_best_config(device: &cpal::Device) -> Result<(StreamConfig, SampleFo
 
     if let Some(config_range) = mono_config {
         let config = config_range.with_max_sample_rate();
-        debug!("Found mono configuration with different format, btu mono {:?}", &config);
+        debug!("Found mono configuration with different format {:?}", &config);
         return Ok((config.into(), config_range.sample_format()));
     }
 

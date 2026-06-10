@@ -15,6 +15,7 @@ circular-buffer.workspace = true
 cpal.workspace = true
 hound.workspace = true
 log.workspace = true
+nnnoiseless.workspace = true
 rubato.workspace = true
 
 [dev-dependencies]

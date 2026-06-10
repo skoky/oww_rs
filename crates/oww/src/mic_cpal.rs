@@ -62,7 +62,7 @@ impl MicHandlerCpal {
             }
         }
         info!("Starting to find the best config");
-        let (config, sample_format) = match find_best_config(&device) {
+        let (config, sample_format) = match find_best_config(&device, false) {
             Ok(c) => c,
             Err(e) => {
                 warn!("Mic not compatible {}", e);
