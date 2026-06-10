@@ -2,9 +2,15 @@
 name = "oww-rs"
 description = "Minimalistic version of the OpenWakeWord inference in Rust and ONNX runtime"
 keywords = ["stopword", "speech", "alexa", "detection", "onnx"]
+categories = ["multimedia::audio", "science"]
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "oww_rs"

@@ -1,32 +1,42 @@
 [![Build & test](https://github.com/skoky/oww_rs/actions/workflows/rust.yml/badge.svg)](https://github.com/skoky/oww_rs/actions/workflows/rust.yml)
 
-# Minimalistic version of the OpenWakeWord inference in Rust and ONNX runtime
+# oww-rs — minimalistic OpenWakeWord inference in Rust
 
-This is extracted source code from the [OpenWakeWord](https://github.com/dscripka/openWakeWord) 
-providing simplified code for inference of onnx models only. The Python code for inference is converted to
-Rust for better wake word detection performance. The inference uses [ORT](https://github.com/pykeio/ort)
-supporting all major platforms. For detection the `alexa.onnx` model is used as a sample from
-the OpenWakeWord project. Simly saying "Alexa" is detected from microphone as implemented in the `examples/cpal_test.rs`
+This is extracted source code from [openWakeWord](https://github.com/dscripka/openWakeWord),
+providing simplified code for **inference of ONNX models only**. The Python inference path
+is converted to Rust for better wake-word detection performance. Detection runs on the
+[`tract-onnx`](https://github.com/sonos/tract) runtime, supporting all major platforms.
+The `alexa.onnx` model is bundled as a sample — simply saying "Alexa" into the microphone
+triggers a detection, as implemented in `crates/oww/examples/cpal_test.rs`.
 
-The implementation uses `cpal` opensourced audio recorder crate. This is pure Rust crate for accessing microphones on all major platforms. 
+Microphone access uses the pure-Rust [`cpal`](https://github.com/RustAudio/cpal) crate,
+which works on all major platforms.
 
-See the original [OpenWakeWord](https://github.com/dscripka/openWakeWord) lib for more details for pre-trained models or training new custom model. The
-training stage is not included in this repo and the OpenWakeWord's original steps should be used to generate
-new model triggering on a custom wake word.
+See the original [openWakeWord](https://github.com/dscripka/openWakeWord) project for
+pre-trained models and for training new custom wake words. **Training is not included
+here** — use openWakeWord's steps to generate a model for a custom wake word.
 
-# Running like this
+## Workspace layout
 
-    cargo run --example cpal_test
+This is a Cargo workspace with two publishable crates:
 
-Running tests:
+| Crate | Published as | What it is |
+|-------|--------------|------------|
+| [`crates/audio_tools`](crates/audio_tools) | [`audio_tools`](https://crates.io/crates/audio_tools) | Reusable, **model-agnostic** mic capture, resampling, channel handling, conversion, RMS and WAV saving for a 16 kHz mono pipeline. |
+| [`crates/oww`](crates/oww) | [`oww-rs`](https://crates.io/crates/oww-rs) | The wake-word ONNX inference (tract) + mic-capture detection loop. Depends on `audio_tools`. |
 
-    cargo test
+## Running
 
-# Contribution
+```bash
+cargo run -p oww-rs --example cpal_test            # live mic demo — say "Alexa"
+cargo run -p audio_tools --example mic_to_chunks   # mic → 16 kHz chunk demo
+cargo test                                         # run the whole workspace
+```
 
-Make an issue / PR etc.
+## Contribution
 
-# Licence
+Open an issue / PR.
+
+## License
 
 MIT license, see [LICENSE](./LICENSE)
-

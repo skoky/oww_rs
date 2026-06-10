@@ -2,9 +2,15 @@
 name = "audio_tools"
 description = "Reusable microphone capture, resampling and audio conversion tools (16 kHz mono pipeline)"
 keywords = ["audio", "microphone", "resampling", "cpal", "dsp"]
+categories = ["multimedia::audio"]
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+rust-version.workspace = true
 
 [lib]
 crate-type = ["lib"]
