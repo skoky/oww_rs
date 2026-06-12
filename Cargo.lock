@@ -150,7 +150,7 @@ checksum = "f93ebbf82d06013f4c41fe71303feb980cddd78496d904d06be627972de51a24"
 
 [[package]]
 name = "audio_tools"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "approx",
  "chrono",
@@ -1414,7 +1414,7 @@ checksum = "e2355d85b9a3786f481747ced0e0ff2ba35213a1f9bd406ed906554d7af805a1"
 
 [[package]]
 name = "oww-rs"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "anyhow",
  "approx",
