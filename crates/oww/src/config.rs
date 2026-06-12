@@ -2,6 +2,7 @@
 pub enum SpeechUnlockType {
     OpenWakeWordAlexa,
     OpenWakeWordHeyMycroft,
+    OpenWakeWordHeyJarvis,
 }
 #[derive(Debug, Clone)]
 pub struct UnlockConfig {

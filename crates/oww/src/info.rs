@@ -3,8 +3,9 @@ use crate::config::{UnlockConfig};
 use log::{debug};
 
 pub const OWW_CZ_NAME_AHOJ_HUGO: &str = "Český - Ahoj Hugo";
-pub const OWW_CZ_NAME_ALEXA: &str = "Český - Alexa";
-pub const OWW_CZ_NAME_HEY_MYCROFT: &str = "Český - Hey Mycroft";
+pub const OWW_CZ_NAME_ALEXA: &str = "Alexa";
+pub const OWW_CZ_NAME_HEY_MYCROFT: &str = "Hey Mycroft";
+pub const OWW_CZ_NAME_HEY_JARVIS: &str = "Hey Jarvis";
 
 #[derive(Debug)]
 pub struct LanguageModel {
@@ -22,6 +23,7 @@ pub fn get_trigger_phases(unlock_config: &UnlockConfig) -> Vec<String> {
     match unlock_config.unlock_type {
         SpeechUnlockType::OpenWakeWordAlexa => vec!["Alexa".to_string()],
         SpeechUnlockType::OpenWakeWordHeyMycroft => vec!["Hey Mycroft".to_string()],
+        SpeechUnlockType::OpenWakeWordHeyJarvis => vec!["Hey Jarvis".to_string()],
     }
 }
 
@@ -31,6 +33,7 @@ pub fn set_unlock_model(language_model: &LanguageModel) -> Option<UnlockConfig> 
     let model_type = match language_model.name.as_str() {
         OWW_CZ_NAME_ALEXA => SpeechUnlockType::OpenWakeWordAlexa,
         OWW_CZ_NAME_HEY_MYCROFT => SpeechUnlockType::OpenWakeWordHeyMycroft,
+        OWW_CZ_NAME_HEY_JARVIS => SpeechUnlockType::OpenWakeWordHeyJarvis,
         _ => {
             panic!("Unexpected language model {:?}", language_model);
         }
