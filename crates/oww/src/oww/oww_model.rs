@@ -111,12 +111,18 @@ impl OwwModel {
                     .unwrap()
                     .data
             }
+            SpeechUnlockType::OpenWakeWordAhojHugo => {
+                &crate::oww::oww_model::SpeechModels::get("ahoj_hugo.onnx")
+                    .unwrap()
+                    .data
+            }
         };
 
         let model_unlock_word = match model_type {
             SpeechUnlockType::OpenWakeWordAlexa => "Alexa".to_string(),
             SpeechUnlockType::OpenWakeWordHeyMycroft => "Hey Mycroft".to_string(),
             SpeechUnlockType::OpenWakeWordHeyJarvis => "Hey Jarvis".to_string(),
+            SpeechUnlockType::OpenWakeWordAhojHugo => "Ahoj Hugo".to_string(),
         };
         let detections_buffer = CircularBuffer::<DETECTION_BUFFER_SIZE, f32>::new();
 

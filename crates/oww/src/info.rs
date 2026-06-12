@@ -24,6 +24,7 @@ pub fn get_trigger_phases(unlock_config: &UnlockConfig) -> Vec<String> {
         SpeechUnlockType::OpenWakeWordAlexa => vec!["Alexa".to_string()],
         SpeechUnlockType::OpenWakeWordHeyMycroft => vec!["Hey Mycroft".to_string()],
         SpeechUnlockType::OpenWakeWordHeyJarvis => vec!["Hey Jarvis".to_string()],
+        SpeechUnlockType::OpenWakeWordAhojHugo => vec!["Ahoj Hugo".to_string()],
     }
 }
 
@@ -34,6 +35,7 @@ pub fn set_unlock_model(language_model: &LanguageModel) -> Option<UnlockConfig> 
         OWW_CZ_NAME_ALEXA => SpeechUnlockType::OpenWakeWordAlexa,
         OWW_CZ_NAME_HEY_MYCROFT => SpeechUnlockType::OpenWakeWordHeyMycroft,
         OWW_CZ_NAME_HEY_JARVIS => SpeechUnlockType::OpenWakeWordHeyJarvis,
+        OWW_CZ_NAME_AHOJ_HUGO => SpeechUnlockType::OpenWakeWordAhojHugo,
         _ => {
             panic!("Unexpected language model {:?}", language_model);
         }
@@ -42,8 +44,6 @@ pub fn set_unlock_model(language_model: &LanguageModel) -> Option<UnlockConfig> 
     new_unlock_config.unlock_type = model_type;
 
     debug!("New unlock model config {:?}", new_unlock_config);
-    // if let Err(e) = save_config(unlock_config_file, &new_unlock_config) {
-    //     warn!("Failed to save unlock config {}", e);
-    // }
+
     Some(new_unlock_config)
 }

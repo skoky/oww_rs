@@ -7,11 +7,11 @@ mod tests {
     use crate::oww::{OWW_MODEL_CHUNK_SIZE, OwwModel};
     use audio_tools::process_audio::resample_into_chunks;
     use audio_tools::resampler::make_resampler;
+    use rstest::rstest;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
     const DETECTION_THRESHOLD: f32 = 0.5;
-    const FIXTURE_SAMPLE_RATE: u32 = 48000;
 
     #[test]
     fn test_mels2() {
@@ -23,14 +23,22 @@ mod tests {
         assert_eq!(mels.shape(), [8, 32]);
     }
 
-    /// Loads a 48 kHz stereo fixture wav and returns its left channel as 48 kHz mono.
-    fn load_fixture_mono(wav_path: &str) -> Vec<f32> {
+    /// Loads a fixture wav in whatever rate / channel layout it is stored in and
+    /// returns it as mono (left channel) plus its sample rate.
+    fn load_fixture_mono(wav_path: &str) -> (Vec<f32>, u32) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(wav_path);
+        let spec = hound::WavReader::open(path).unwrap().spec();
         let interleaved = load_wav(wav_path).unwrap();
-        interleaved.iter().step_by(2).copied().collect()
+        let mono = match spec.channels {
+            1 => interleaved,
+            2 => interleaved.iter().step_by(2).copied().collect(),
+            n => panic!("unsupported channel count {}", n),
+        };
+        (mono, spec.sample_rate)
     }
 
     /// Linear-interpolation resampler used only to derive the test input formats from
-    /// the 48 kHz fixture — deliberately independent of the rubato pipeline under test.
+    /// the fixture wavs — deliberately independent of the rubato pipeline under test.
     fn resample_linear(samples: &[f32], src_rate: u32, dst_rate: u32) -> Vec<f32> {
         if src_rate == dst_rate {
             return samples.to_vec();
@@ -47,12 +55,13 @@ mod tests {
             .collect()
     }
 
-    /// Converts the 48 kHz stereo fixture to the requested rate / channel layout, pads
-    /// it with silence, resamples it back to 16 kHz through the audio_tools pipeline
-    /// and feeds the 1280-sample chunks to the "hey jarvis" model. Returns the number
-    /// of detections.
-    fn count_detections(wav_path: &str, sample_rate: u32, channels: usize) -> usize {
-        let mono = resample_linear(&load_fixture_mono(wav_path), FIXTURE_SAMPLE_RATE, sample_rate);
+    /// Converts a fixture wav to the requested rate / channel layout, pads it with
+    /// silence, resamples it back to 16 kHz through the audio_tools pipeline and feeds
+    /// the 1280-sample chunks to the given wake-word model. Returns the number of
+    /// detections.
+    fn count_detections(wav_path: &str, model_type: SpeechUnlockType, sample_rate: u32, channels: usize) -> usize {
+        let (fixture_mono, fixture_rate) = load_fixture_mono(wav_path);
+        let mono = resample_linear(&fixture_mono, fixture_rate, sample_rate);
         let mut samples = match channels {
             1 => mono,
             2 => mono.iter().flat_map(|s| [*s, *s]).collect(),
@@ -61,12 +70,11 @@ mod tests {
 
         // two seconds of trailing silence, so the probability can fall below 0.1 after
         // the wake word (detection fires on the falling edge) and the resampler buffers
-        // are flushed. No leading padding: the mel front-end processes each 1280-sample
-        // chunk independently, so detection is sensitive to sub-chunk alignment shifts
+        // are flushed
         let tail = vec![0f32; (sample_rate as usize * 2) * channels];
         samples.extend(tail);
 
-        let mut model = OwwModel::new(SpeechUnlockType::OpenWakeWordHeyJarvis, DETECTION_THRESHOLD).unwrap();
+        let mut model = OwwModel::new(model_type, DETECTION_THRESHOLD).unwrap();
         // the refractory gate (NO_DETECTION_MS) measures wall time since model creation;
         // rewind it so a detection within the clip is not suppressed
         model.last_detection_time = Instant::now() - Duration::from_secs(10);
@@ -88,37 +96,33 @@ mod tests {
 
     const JARVIS_WAV: &str = "test_data/hey_jarvis_48k_stereo.wav";
     const NEGATIVE_WAV: &str = "test_data/negative_48k_stereo.wav";
+    const HUGO_MAN_WAV: &str = "test_data/ahoj_hugo_man.wav";
+    const HUGO_WOMAN_WAV: &str = "test_data/ahoj_hugo_woman.wav";
 
-    // positive detections: "hey jarvis" must be detected at every rate / channel layout
+    use SpeechUnlockType::{OpenWakeWordAhojHugo, OpenWakeWordHeyJarvis};
 
-    #[test]
-    fn test_jarvis_16k_mono() {
-        assert!(count_detections(JARVIS_WAV, 16000, 1) >= 1);
+    /// positive detections: every wake word must be detected at every rate / channel
+    /// layout (3 clips × 3 rates × mono/stereo = 18 cases)
+    #[rstest]
+    #[case::jarvis(JARVIS_WAV, OpenWakeWordHeyJarvis)]
+    #[case::hugo_man(HUGO_MAN_WAV, OpenWakeWordAhojHugo)]
+    #[case::hugo_woman(HUGO_WOMAN_WAV, OpenWakeWordAhojHugo)]
+    fn test_positive_detection(
+        #[case] wav: &str,
+        #[case] model_type: SpeechUnlockType,
+        #[values(16000, 44100, 48000)] sample_rate: u32,
+        #[values(1, 2)] channels: usize,
+    ) {
+        assert!(count_detections(wav, model_type, sample_rate, channels) >= 1);
     }
 
-    #[test]
-    fn test_jarvis_16k_stereo() {
-        assert!(count_detections(JARVIS_WAV, 16000, 2) >= 1);
-    }
-
-    #[test]
-    fn test_jarvis_44_1k_mono() {
-        assert!(count_detections(JARVIS_WAV, 44100, 1) >= 1);
-    }
-
-    #[test]
-    fn test_jarvis_44_1k_stereo() {
-        assert!(count_detections(JARVIS_WAV, 44100, 2) >= 1);
-    }
-
-    #[test]
-    fn test_jarvis_48k_mono() {
-        assert!(count_detections(JARVIS_WAV, 48000, 1) >= 1);
-    }
-
-    #[test]
-    fn test_jarvis_48k_stereo() {
-        assert!(count_detections(JARVIS_WAV, 48000, 2) >= 1);
+    /// negative detections: other speech must never trigger
+    #[rstest]
+    fn test_negative_detection(
+        #[values(16000, 44100, 48000)] sample_rate: u32,
+        #[values(1, 2)] channels: usize,
+    ) {
+        assert_eq!(count_detections(NEGATIVE_WAV, OpenWakeWordHeyJarvis, sample_rate, channels), 0);
     }
 
     /// Detection must not depend on where the wake word lands relative to the
@@ -126,60 +130,27 @@ mod tests {
     /// The mel front-end keeps a raw-audio lookback across chunks (mirroring
     /// openWakeWord's streaming melspectrogram), otherwise sub-chunk shifts of the
     /// same audio make the probability collapse.
-    #[test]
-    fn test_jarvis_alignment_offsets() {
-        let jarvis = load_wav("hey_jarvis.wav").unwrap();
-        for offset in (0..1280).step_by(160) {
-            let mut samples = vec![0f32; offset];
-            samples.extend(&jarvis);
-            samples.extend(vec![0f32; 16000]);
+    #[rstest]
+    fn test_jarvis_alignment_offset(
+        #[values(0, 160, 320, 480, 640, 800, 960, 1120)] offset: usize,
+    ) {
+        let mut samples = vec![0f32; offset];
+        samples.extend(load_wav("hey_jarvis.wav").unwrap());
+        samples.extend(vec![0f32; 16000]);
 
-            let mut model = OwwModel::new(SpeechUnlockType::OpenWakeWordHeyJarvis, DETECTION_THRESHOLD).unwrap();
-            let mut max_prob = 0f32;
-            for chunk in samples.chunks_exact(OWW_MODEL_CHUNK_SIZE) {
-                let d = model.detection(chunk.to_vec());
-                if d.probability > max_prob {
-                    max_prob = d.probability;
-                }
+        let mut model = OwwModel::new(OpenWakeWordHeyJarvis, DETECTION_THRESHOLD).unwrap();
+        let mut max_prob = 0f32;
+        for chunk in samples.chunks_exact(OWW_MODEL_CHUNK_SIZE) {
+            let d = model.detection(chunk.to_vec());
+            if d.probability > max_prob {
+                max_prob = d.probability;
             }
-            assert!(
-                max_prob > DETECTION_THRESHOLD,
-                "wake word missed at offset {} samples: max avg probability {:.4}",
-                offset,
-                max_prob
-            );
         }
-    }
-
-    // negative detections: other speech must never trigger
-
-    #[test]
-    fn test_negative_16k_mono() {
-        assert_eq!(count_detections(NEGATIVE_WAV, 16000, 1), 0);
-    }
-
-    #[test]
-    fn test_negative_16k_stereo() {
-        assert_eq!(count_detections(NEGATIVE_WAV, 16000, 2), 0);
-    }
-
-    #[test]
-    fn test_negative_44_1k_mono() {
-        assert_eq!(count_detections(NEGATIVE_WAV, 44100, 1), 0);
-    }
-
-    #[test]
-    fn test_negative_44_1k_stereo() {
-        assert_eq!(count_detections(NEGATIVE_WAV, 44100, 2), 0);
-    }
-
-    #[test]
-    fn test_negative_48k_mono() {
-        assert_eq!(count_detections(NEGATIVE_WAV, 48000, 1), 0);
-    }
-
-    #[test]
-    fn test_negative_48k_stereo() {
-        assert_eq!(count_detections(NEGATIVE_WAV, 48000, 2), 0);
+        assert!(
+            max_prob > DETECTION_THRESHOLD,
+            "wake word missed at offset {} samples: max avg probability {:.4}",
+            offset,
+            max_prob
+        );
     }
 }

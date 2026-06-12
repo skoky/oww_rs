@@ -3,6 +3,7 @@ pub enum SpeechUnlockType {
     OpenWakeWordAlexa,
     OpenWakeWordHeyMycroft,
     OpenWakeWordHeyJarvis,
+    OpenWakeWordAhojHugo,
 }
 #[derive(Debug, Clone)]
 pub struct UnlockConfig {
@@ -29,31 +30,3 @@ impl Default for UnlockConfig {
         }
     }
 }
-
-// pub fn get_unlock_time_secs(config_file: PathBuf) -> u8 {
-//     load_config(config_file).unlock_time_secs
-// }
-
-// pub fn load_config(config_file_name: PathBuf) -> UnlockConfig {
-//     confy::load_path(&config_file_name).unwrap_or_else(|e| {
-//         warn!("Can't load {:?}; error {}. Creating defaults", config_file_name, e);
-//         let new_config = UnlockConfig::default();
-//         if let Err(e) = confy::store_path(config_file_name.clone(), &new_config) {
-//             panic!(
-//                 "Can't store {:?}; error '{}', current dir: {:?}. Install Hugo in read-write location",
-//                 &config_file_name,
-//                 e,
-//                 env::current_dir()
-//             );
-//         }
-//         new_config
-//     })
-// }
-
-// pub fn save_config(config_file_name: PathBuf, unlock_config: &UnlockConfig) -> Result<(), String> {
-//     let x = confy::store_path(config_file_name, unlock_config);
-//     match x {
-//         Ok(_) => Ok(()),
-//         Err(e) => Err(format!("{}", e)),
-//     }
-// }

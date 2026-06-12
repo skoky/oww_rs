@@ -32,3 +32,4 @@ tract-onnx.workspace = true
 [dev-dependencies]
 anyhow = "1"
 approx.workspace = true
+rstest = "0.26.1"

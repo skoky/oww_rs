@@ -24,7 +24,10 @@ cargo run -p oww-rs --example cpal_test   # live mic demo — say "Alexa" to tri
 cargo test                          # run the whole workspace
 cargo test -p audio_tools           # test just the audio crate
 cargo test test_mels2               # run a single test by name
+cargo nextest run                   # preferred test runner — reports each rstest case individually
 ```
+
+Detection tests in `crates/oww/src/oww_tests.rs` are parameterized with `rstest`: wake-word clip × sample rate (16/44.1/48 kHz) × channel layout (mono/stereo) expand into individual cases (e.g. `test_positive_detection::case_1_jarvis::sample_rate_2_44100::channels_1_1`), filterable with `cargo nextest run -E 'test(hugo_man)'`.
 
 CI (`.github/workflows/rust.yml`) runs `cargo build` + `cargo test` on `ubuntu-latest`. Edition is **2024** (needs a recent stable toolchain).
 
