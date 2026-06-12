@@ -22,7 +22,7 @@ pub mod info;
 pub mod mic_cpal;
 mod model;
 pub mod oww;
-mod tests;
+mod oww_tests;
 
 type ModelType = Arc<RunnableModel<TypedFact, Box<dyn TypedOp>>>;
 

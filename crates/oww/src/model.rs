@@ -15,6 +15,12 @@ pub fn new_model(config: UnlockConfig) -> Result<Box<dyn Model>, String> {
         SpeechUnlockType::OpenWakeWordHeyMycroft => {
             new_oww_model(config, SpeechUnlockType::OpenWakeWordHeyMycroft)
         }
+        SpeechUnlockType::OpenWakeWordHeyJarvis => {
+            new_oww_model(config, SpeechUnlockType::OpenWakeWordHeyJarvis)
+        }
+        SpeechUnlockType::OpenWakeWordAhojHugo => {
+            new_oww_model(config, SpeechUnlockType::OpenWakeWordAhojHugo)
+        }
     }
 }
 

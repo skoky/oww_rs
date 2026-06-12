@@ -15,12 +15,21 @@ struct Models;
 
 pub const FEATURE_BUFFER_SIZE: usize = 16;
 pub const MELS_BUFFER_SIZE: usize = 40;
-const MEL_CIRC_SIZE: usize = 80 / 5;
+/// Raw-audio carryover prepended to every chunk before the melspectrogram, mirroring
+/// openWakeWord's streaming melspectrogram (`raw_data_buffer[-n_samples-160*3:]`):
+/// 3 mel hops of 160 samples, so mel windows stay continuous across chunk boundaries.
+const MEL_LOOKBACK: usize = 160 * 3;
+/// Mel model input: 480 samples of lookback + one 1280-sample chunk.
+const MEL_INPUT_SIZE: usize = MEL_LOOKBACK + 1280;
+/// Mel frames produced per chunk: input/160 - 3 = 8 (one frame per 160-sample hop).
+pub const MELS_PER_CHUNK: usize = MEL_INPUT_SIZE / 160 - 3;
+const MEL_CIRC_SIZE: usize = 80 / MELS_PER_CHUNK;
 
 #[derive(Debug)]
 pub struct AudioFeaturesTract {
     mel: ModelType,
     emb: ModelType,
+    raw_lookback: Vec<f32>,
     pub feature_buffer: Box<CircularBuffer<FEATURE_BUFFER_SIZE, Tensor>>,
     pub mel_spectrogram_buffer: Box<CircularBuffer<MEL_CIRC_SIZE, Tensor>>,
 }
@@ -39,7 +48,7 @@ impl AudioFeaturesTract {
 
         let mel = mel_model
             .unwrap()
-            .with_input_fact(0, f32::fact([1, 1280]).into())
+            .with_input_fact(0, f32::fact([1, MEL_INPUT_SIZE]).into())
             .unwrap()
             .into_optimized()
             .unwrap()
@@ -61,26 +70,33 @@ impl AudioFeaturesTract {
         }
         let mut mel_spectrogram_buffer: Box<CircularBuffer<MEL_CIRC_SIZE, Tensor>> = CircularBuffer::<MEL_CIRC_SIZE, Tensor>::boxed();
         for _ in 0..MEL_CIRC_SIZE {
-            mel_spectrogram_buffer.push_back(Tensor::from_shape(&[5, 32], &[0f32; 5 * 32]).unwrap());
+            mel_spectrogram_buffer.push_back(Tensor::from_shape(&[MELS_PER_CHUNK, 32], &[0f32; MELS_PER_CHUNK * 32]).unwrap());
         }
 
         AudioFeaturesTract {
             mel,
             emb,
+            raw_lookback: vec![0f32; MEL_LOOKBACK],
             feature_buffer,
             mel_spectrogram_buffer,
         }
     }
 
     pub fn get_melspectrogram(&mut self, data: &[f32]) -> Result<Tensor, Box<dyn Error>> {
-        let tensor = Tensor::from_shape(&[1, 1280], data).expect("wrong shape size"); // or .into() variants depending on tract version
+        // prepend the tail of the previous chunk so mel windows overlap the boundary
+        let mut input = Vec::with_capacity(MEL_INPUT_SIZE);
+        input.extend_from_slice(&self.raw_lookback);
+        input.extend_from_slice(data);
+        self.raw_lookback.copy_from_slice(&data[data.len() - MEL_LOOKBACK..]);
+
+        let tensor = Tensor::from_shape(&[1, MEL_INPUT_SIZE], &input).expect("wrong shape size"); // or .into() variants depending on tract version
 
         trace!("2:get_melspectrogram with data size {:?}", tensor.shape());
         let outputs: TVec<TValue> = self.mel.run(tvec!(tensor.into()))?;
 
         let out_tensor = outputs[0].clone().into_tensor();
         trace!("2: get_melspectrogram with output tensor {:?}", out_tensor.shape());
-        let resized = out_tensor.clone().into_shape(&[5, 32])?;
+        let resized = out_tensor.clone().into_shape(&[MELS_PER_CHUNK, 32])?;
         let a = resized.into_plain_array::<f32>()?.into_owned();
         let updated = a.mapv(|v| (v / 10.0) + 2.0).into_tensor();
         Ok(updated)

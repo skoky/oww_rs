@@ -24,7 +24,10 @@ cargo run -p oww-rs --example cpal_test   # live mic demo — say "Alexa" to tri
 cargo test                          # run the whole workspace
 cargo test -p audio_tools           # test just the audio crate
 cargo test test_mels2               # run a single test by name
+cargo nextest run                   # preferred test runner — reports each rstest case individually
 ```
+
+Detection tests in `crates/oww/src/oww_tests.rs` are parameterized with `rstest`: wake-word clip × sample rate (16/44.1/48 kHz) × channel layout (mono/stereo) expand into individual cases (e.g. `test_positive_detection::case_1_jarvis::sample_rate_2_44100::channels_1_1`), filterable with `cargo nextest run -E 'test(hugo_man)'`.
 
 CI (`.github/workflows/rust.yml`) runs `cargo build` + `cargo test` on `ubuntu-latest`. Edition is **2024** (needs a recent stable toolchain).
 
@@ -35,7 +38,7 @@ The pipeline (in `crates/oww`) mirrors openWakeWord's Python front-end exactly, 
 1. **Embedded models** (`rust-embed`, baked into the binary at compile time; folders resolve relative to `crates/oww/`):
    - `crates/oww/models/` — the shared front-end: `melspectrogram.onnx` + `embedding_model.onnx` (loaded in `oww/audio.rs`).
    - `crates/oww/speech_models/` — per-wakeword classifiers, e.g. `alexa.onnx` (loaded in `oww/oww_model.rs`).
-2. **Feature front-end** (`AudioFeaturesTract` in `crates/oww/src/oww/audio.rs`): a 1280-sample chunk → melspectrogram model → `[5,32]` mel frame, **rescaled `v/10 + 2`** (this matches openWakeWord's mel normalization). Mel frames are buffered, stacked to `[80,32]`, sliced to `[76,32]`, reshaped `[1,76,32,1]` → embedding model → `[1,1,1,96]` feature vector. Feature vectors are buffered 16 deep → `[16,96]`.
+2. **Feature front-end** (`AudioFeaturesTract` in `crates/oww/src/oww/audio.rs`): a 1280-sample chunk is prepended with a **480-sample raw-audio lookback** from the previous chunk (mirroring openWakeWord's streaming melspectrogram, so mel windows stay continuous across chunk boundaries) → melspectrogram model (`[1,1760]` input) → `[8,32]` mel frames, **rescaled `v/10 + 2`** (this matches openWakeWord's mel normalization). Mel frames are buffered 10 chunks deep, stacked to `[80,32]`, sliced to `[76,32]`, reshaped `[1,76,32,1]` → embedding model → `[1,1,1,96]` feature vector. Feature vectors are buffered 16 deep → `[16,96]`.
 3. **Classifier** (`crates/oww/src/oww/oww_model.rs`): the `[16,96]` features reshape to `[1,16,96]` → wakeword model → `[1,1]` probability.
 4. **Detection smoothing** — non-obvious, read before changing: per-frame probabilities go into a 12-deep buffer (~1 s). A detection does **not** fire when probability crosses the threshold; it fires on the **falling edge** — when the current probability drops below `0.1` while the running average of above-threshold frames is still high, gated by a 2 s refractory (`NO_DETECTION_MS`) and a minimum positive-frame count (`MIN_POSITIVE_DETECTIONS`). See `OwwModel::detect` / `calculate_average`.
 
