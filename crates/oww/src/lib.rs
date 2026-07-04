@@ -13,7 +13,6 @@ use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
-use tract_core::internal::{RunnableModel, TypedFact, TypedOp};
 use audio_tools::chunk::ChunkType;
 use crate::config::UnlockConfig;
 
@@ -24,7 +23,7 @@ mod model;
 pub mod oww;
 mod tests;
 
-type ModelType = Arc<RunnableModel<TypedFact, Box<dyn TypedOp>>>;
+type ModelType = Arc<rten::Model>;
 
 pub struct Models {
     pub(crate) model1: Box<dyn Model>,

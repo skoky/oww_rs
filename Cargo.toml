@@ -21,5 +21,5 @@ rubato = { version = "3.0", features = ["fft_resampler"] }
 rust-embed = "8.5"
 tokio = "1"
 tokio-util = "0"
-tract-core = "0.23"
-tract-onnx = "0.23"
+rten = "0.24"
+rten-tensor = "0.24"

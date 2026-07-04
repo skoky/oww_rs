@@ -6,16 +6,14 @@ use crate::oww::audio::AudioFeaturesTract;
 use circular_buffer::CircularBuffer;
 use log::{debug, trace, warn};
 use oww::DETECTION_BUFFER_SIZE;
+use rten::{RunOptions, ThreadPool};
+use rten_tensor::NdTensor;
+use rten_tensor::prelude::*;
 use rust_embed::Embed;
 use std::{fs, io};
-use std::io::Cursor;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
-use tract_core::internal::TVec;
-use tract_core::prelude::multithread::{self, Executor};
-use tract_core::model::IntoRunnable;
-use tract_core::prelude::{Framework, TValue};
-use tract_onnx::prelude::{InferenceModelExt, IntoTensor, Tensor as TractTensor, tvec};
 
 const MIN_POSITIVE_DETECTIONS: f32 = 3.0;
 const NO_DETECTION_MS: u32 = 2_000;
@@ -50,26 +48,33 @@ impl OwwModel {
         }
     }
 
-    pub fn detect(&mut self, features: TractTensor) -> (bool, f32) {
-        trace!("2: features size {:?}", features.shape()); // [16, 96]
-        let last = features.into_shape(&[1, 16, 96]).unwrap();
-        trace!("2: inputs size {:?}", last.shape()); // [1, 16, 96]
+    pub fn detect(&mut self, features: Vec<f32>) -> (bool, f32) {
+        trace!("2: features size {:?}", features.len()); // 16*96 = 1536
+        let input = NdTensor::from_data([1, 16, 96], features);
+        trace!("2: inputs shape {:?}", input.shape()); // [1, 16, 96]
 
-        multithread::set_default_executor(Executor::SingleThread);
+        let input_id = self.model.input_ids()[0];
+        let output_id = self.model.output_ids()[0];
+        let opts = RunOptions::default().with_thread_pool(Some(Arc::clone(&self.pool)));
 
-        let out: TVec<TValue> = self.tract_model.run(tvec!(last.into())).unwrap();
-        trace!("2: output {:?}", out[0].shape()); // [1,1]
+        let [out] = self.model.run_n(
+            vec![(input_id, input.view().into())],
+            [output_id],
+            Some(opts),
+        ).unwrap();
 
-        let t = out.clone()[0].clone().into_tensor().cast_to::<f32>().unwrap().into_owned();
-        let probability = t.into_plain_array::<f32>().unwrap().as_slice().unwrap()[0];
-        trace!("2:Tract probability: {:?}", probability);
+        let out_tensor: NdTensor<f32, 2> = out.try_into().unwrap();
+        trace!("2: output shape {:?}", out_tensor.shape()); // [1, 1]
+        let probability = out_tensor.data().unwrap()[0];
+        trace!("2: probability: {:?}", probability);
 
         self.detections_buffer.push_back(probability);
 
         let average_detection_probability = self.calculate_average();
         let since_last_detection = self.last_detection_time.elapsed().as_millis();
 
-        // when detection is done and avg detection is still high. Anf not too often
+        // Detection fires on the falling edge — when probability drops below 0.1
+        // while the running average of above-threshold frames is still high.
         if probability < 0.1 && average_detection_probability > self.threshold && since_last_detection > NO_DETECTION_MS as _ {
             self.last_detection_time = Instant::now();
             return (true, average_detection_probability);
@@ -97,29 +102,29 @@ impl OwwModel {
     pub fn new(model_type: SpeechUnlockType, threshold: f32) -> Result<OwwModel, String> {
         let model_data = match model_type {
             SpeechUnlockType::OpenWakeWordAlexa => {
-                &crate::oww::oww_model::SpeechModels::get("alexa.onnx")
-                    .unwrap()
-                    .data
+                SpeechModels::get("alexa.onnx").unwrap().data.to_vec()
             }
             SpeechUnlockType::OpenWakeWordHeyMycroft => {
-                &crate::oww::oww_model::SpeechModels::get("hey_mycroft_v0.1.onnx")
-                    .unwrap()
-                    .data
+                SpeechModels::get("hey_mycroft_v0.1.onnx").unwrap().data.to_vec()
+            }
+            SpeechUnlockType::OpenWakeWordAhojHugo => {
+                SpeechModels::get("ahoj_hugo.onnx").unwrap().data.to_vec()
             }
         };
 
         let model_unlock_word = match model_type {
             SpeechUnlockType::OpenWakeWordAlexa => "Alexa".to_string(),
             SpeechUnlockType::OpenWakeWordHeyMycroft => "Hey Mycroft".to_string(),
+            SpeechUnlockType::OpenWakeWordAhojHugo => "Ahoj Hugo".to_string(),
         };
         let detections_buffer = CircularBuffer::<DETECTION_BUFFER_SIZE, f32>::new();
+        let pool = Arc::new(ThreadPool::with_num_threads(1));
 
-        let mut rdr = Cursor::new(model_data);
-
-        let tract_model = tract_onnx::onnx().model_for_read(&mut rdr).unwrap().into_optimized().unwrap().into_runnable().unwrap();
+        let model = Arc::new(rten::Model::load(model_data).map_err(|e| e.to_string())?);
         Ok(OwwModel {
-            audio: AudioFeaturesTract::create_default(),
-            tract_model,
+            audio: AudioFeaturesTract::new(Arc::clone(&pool)),
+            model,
+            pool,
             threshold,
             last_detection_time: Instant::now(),
             detections_buffer,
@@ -130,13 +135,16 @@ impl OwwModel {
     pub fn from_file<P: AsRef<Path>>(path: P, model_unlock_word: String, threshold: f32) -> io::Result<OwwModel> {
         let model_data = fs::read(path)?;
         let detections_buffer = CircularBuffer::<DETECTION_BUFFER_SIZE, f32>::new();
+        let pool = Arc::new(ThreadPool::with_num_threads(1));
 
-        let mut rdr = Cursor::new(model_data);
-
-        let tract_model = tract_onnx::onnx().model_for_read(&mut rdr).unwrap().into_optimized().unwrap().into_runnable().unwrap();
+        let model = Arc::new(
+            rten::Model::load(model_data)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))?
+        );
         Ok(OwwModel {
-            audio: AudioFeaturesTract::create_default(),
-            tract_model,
+            audio: AudioFeaturesTract::new(Arc::clone(&pool)),
+            model,
+            pool,
             threshold,
             last_detection_time: Instant::now(),
             detections_buffer,

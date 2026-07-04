@@ -1,13 +1,13 @@
 use circular_buffer::CircularBuffer;
 use log::trace;
+use rten::{RunOptions, ThreadPool};
+use rten_tensor::NdTensor;
+use rten_tensor::prelude::*;
 use rust_embed::Embed;
 use std::error::Error;
-use std::io::Cursor;
-use tract_core::prelude::multithread::{self, Executor};
-use tract_onnx::prelude::Tensor;
+use std::sync::Arc;
 
 use crate::ModelType;
-use tract_onnx::prelude::*;
 
 #[derive(Embed)]
 #[folder = "models/"]
@@ -21,97 +21,97 @@ const MEL_CIRC_SIZE: usize = 80 / 5;
 pub struct AudioFeaturesTract {
     mel: ModelType,
     emb: ModelType,
-    pub feature_buffer: Box<CircularBuffer<FEATURE_BUFFER_SIZE, Tensor>>,
-    pub mel_spectrogram_buffer: Box<CircularBuffer<MEL_CIRC_SIZE, Tensor>>,
+    pool: Arc<ThreadPool>,
+    pub feature_buffer: Box<CircularBuffer<FEATURE_BUFFER_SIZE, Vec<f32>>>,
+    pub mel_spectrogram_buffer: Box<CircularBuffer<MEL_CIRC_SIZE, Vec<f32>>>,
 }
 
 impl AudioFeaturesTract {
-    pub fn create_default() -> Self {
-        let mel_model_data = &Models::get("melspectrogram.onnx").unwrap().data;
-        let mut mel_model_rdr = Cursor::new(mel_model_data);
-        let mel_model = tract_onnx::onnx().model_for_read(&mut mel_model_rdr);
+    pub fn new(pool: Arc<ThreadPool>) -> Self {
+        let mel_model_data = Models::get("melspectrogram.onnx").unwrap().data.to_vec();
+        let mel = Arc::new(rten::Model::load(mel_model_data).unwrap());
 
-        let emb_model_data = &Models::get("embedding_model.onnx").unwrap().data;
-        let mut emb_model_rdr = Cursor::new(emb_model_data);
-        let embeddings_model = tract_onnx::onnx().model_for_read(&mut emb_model_rdr);
+        let emb_model_data = Models::get("embedding_model.onnx").unwrap().data.to_vec();
+        let emb = Arc::new(rten::Model::load(emb_model_data).unwrap());
 
-        multithread::set_default_executor(Executor::SingleThread);
-
-        let mel = mel_model
-            .unwrap()
-            .with_input_fact(0, f32::fact([1, 1280]).into())
-            .unwrap()
-            .into_optimized()
-            .unwrap()
-            .into_runnable()
-            .unwrap();
-
-        let emb = embeddings_model
-            .unwrap()
-            .with_input_fact(0, f32::fact([1, 76, 32, 1]).into())
-            .unwrap()
-            .into_optimized()
-            .unwrap()
-            .into_runnable()
-            .unwrap();
-
-        let mut feature_buffer = CircularBuffer::<FEATURE_BUFFER_SIZE, Tensor>::boxed();
+        let mut feature_buffer = CircularBuffer::<FEATURE_BUFFER_SIZE, Vec<f32>>::boxed();
         for _ in 0..FEATURE_BUFFER_SIZE {
-            feature_buffer.push_back(Tensor::from_shape(&[1, 1, 1, 96], &[0f32; 96]).unwrap());
+            feature_buffer.push_back(vec![0.0f32; 96]);
         }
-        let mut mel_spectrogram_buffer: Box<CircularBuffer<MEL_CIRC_SIZE, Tensor>> = CircularBuffer::<MEL_CIRC_SIZE, Tensor>::boxed();
+        let mut mel_spectrogram_buffer = CircularBuffer::<MEL_CIRC_SIZE, Vec<f32>>::boxed();
         for _ in 0..MEL_CIRC_SIZE {
-            mel_spectrogram_buffer.push_back(Tensor::from_shape(&[5, 32], &[0f32; 5 * 32]).unwrap());
+            mel_spectrogram_buffer.push_back(vec![0.0f32; 5 * 32]);
         }
 
-        AudioFeaturesTract {
-            mel,
-            emb,
-            feature_buffer,
-            mel_spectrogram_buffer,
-        }
+        AudioFeaturesTract { mel, emb, pool, feature_buffer, mel_spectrogram_buffer }
     }
 
-    pub fn get_melspectrogram(&mut self, data: &[f32]) -> Result<Tensor, Box<dyn Error>> {
-        let tensor = Tensor::from_shape(&[1, 1280], data).expect("wrong shape size"); // or .into() variants depending on tract version
-
-        trace!("2:get_melspectrogram with data size {:?}", tensor.shape());
-        let outputs: TVec<TValue> = self.mel.run(tvec!(tensor.into()))?;
-
-        let out_tensor = outputs[0].clone().into_tensor();
-        trace!("2: get_melspectrogram with output tensor {:?}", out_tensor.shape());
-        let resized = out_tensor.clone().into_shape(&[5, 32])?;
-        let a = resized.into_plain_array::<f32>()?.into_owned();
-        let updated = a.mapv(|v| (v / 10.0) + 2.0).into_tensor();
-        Ok(updated)
+    pub fn create_default() -> Self {
+        Self::new(Arc::new(ThreadPool::with_num_threads(1)))
     }
 
-    pub fn get_audio_features(&mut self, data: &[f32]) -> Result<Tensor, Box<dyn Error>> {
+    fn run_opts(&self) -> RunOptions {
+        RunOptions::default().with_thread_pool(Some(Arc::clone(&self.pool)))
+    }
+
+    pub fn get_melspectrogram(&mut self, data: &[f32]) -> Result<NdTensor<f32, 2>, Box<dyn Error>> {
+        let input = NdTensor::from_data([1, 1280], data.to_vec());
+        let input_id = self.mel.input_ids()[0];
+        let output_id = self.mel.output_ids()[0];
+
+        trace!("2:get_melspectrogram with data size {:?}", data.len());
+        let [mel_out] = self.mel.run_n(
+            vec![(input_id, input.view().into())],
+            [output_id],
+            Some(self.run_opts()),
+        )?;
+
+        let mel_tensor: NdTensor<f32, 4> = mel_out.try_into()?;
+        trace!("2: get_melspectrogram with output tensor {:?}", mel_tensor.shape());
+        let raw: Vec<f32> = mel_tensor.iter().copied().map(|v| (v / 10.0) + 2.0).collect();
+        Ok(NdTensor::from_data([5, 32], raw))
+    }
+
+    pub fn get_audio_features(&mut self, data: &[f32]) -> Result<Vec<f32>, Box<dyn Error>> {
         trace!("2: data chunk: {:?}", data.len());
         let mel_chunk = self.get_melspectrogram(data)?;
-        // info!("2: mel_chunk: {:?}", mel_chunk.shape());  // [5,32]
 
-        self.mel_spectrogram_buffer.push_back(mel_chunk);
-        let stacked_mels = Tensor::stack_tensors(0, &self.mel_spectrogram_buffer.to_vec())?;
+        self.mel_spectrogram_buffer.push_back(mel_chunk.data().unwrap().to_vec());
 
-        // info!("2:stacked_mels: {:?}", stacked_mels.shape());  // [80,32]
+        // Stack MEL_CIRC_SIZE frames of [5, 32] → flat [80*32] viewed as [80, 32]
+        let stacked_data: Vec<f32> = self.mel_spectrogram_buffer
+            .to_vec()
+            .into_iter()
+            .flatten()
+            .collect();
 
-        let smaller = stacked_mels.slice(0, 4, 80)?;
-        // info!("2:smaller: {:?}", smaller.shape());  // [76, 32]
-        let reshaped = smaller.into_shape(&[1, 76, 32, 1])?;
+        // Slice rows 4..80: skip first 4*32=128 elements → 76*32=2432 elements
+        let smaller_data: Vec<f32> = stacked_data[4 * 32..].to_vec();
 
-        // info!("2: all mels: {:?}", reshaped.shape());
+        // Run embedding model with input shape [1, 76, 32, 1]
+        let emb_input = NdTensor::from_data([1, 76, 32, 1], smaller_data);
+        let emb_input_id = self.emb.input_ids()[0];
+        let emb_output_id = self.emb.output_ids()[0];
 
-        let embedings = self.emb.run(tvec!(reshaped.into()))?;
+        let [emb_out] = self.emb.run_n(
+            vec![(emb_input_id, emb_input.view().into())],
+            [emb_output_id],
+            Some(self.run_opts()),
+        )?;
 
-        // info!("2: embd shapes: {:?}", embedings[0].shape()); // [1,1,1,96]
+        // Output shape [1, 1, 1, 96] → extract 96 floats
+        let emb_tensor: NdTensor<f32, 4> = emb_out.try_into()?;
+        let emb_data: Vec<f32> = emb_tensor.iter().copied().collect();
 
-        self.feature_buffer.push_back(embedings[0].clone().into_tensor());
+        self.feature_buffer.push_back(emb_data);
 
-        let stacked = Tensor::stack_tensors(0, &self.feature_buffer.to_vec())?;
+        // Stack FEATURE_BUFFER_SIZE frames of 96 floats → flat [16*96=1536] viewed as [16, 96]
+        let features: Vec<f32> = self.feature_buffer
+            .to_vec()
+            .into_iter()
+            .flatten()
+            .collect();
 
-        // Now reshape [41,1,1,96] -> [41,96]
-        let reshaped = stacked.into_shape(&[self.feature_buffer.len(), 96])?;
-        Ok(reshaped)
+        Ok(features)
     }
 }

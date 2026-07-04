@@ -2,6 +2,7 @@
 #[cfg(test)]
 mod tests {
     use crate::oww::audio::AudioFeaturesTract;
+    use rten_tensor::Layout;
 
     #[test]
     fn test_mels2() {

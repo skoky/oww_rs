@@ -2,6 +2,8 @@ use crate::ModelType;
 use crate::model::{Detection, Model};
 use crate::oww::audio::AudioFeaturesTract;
 use circular_buffer::CircularBuffer;
+use rten::ThreadPool;
+use std::sync::Arc;
 use std::time::Instant;
 
 pub mod audio;
@@ -14,10 +16,10 @@ const DETECTION_BUFFER_SIZE: usize = 12; // 12 detection ~ 1 secs
 #[derive(Debug)]
 pub struct OwwModel {
     audio: AudioFeaturesTract,
-    pub tract_model: ModelType,
+    pub model: ModelType,
+    pool: Arc<ThreadPool>,
     threshold: f32,
     pub last_detection_time: Instant,
-    // pub detections_buffer: CircularBuffer<DETECTION_BUFFER_SIZE, f32>,
     pub detections_buffer: CircularBuffer<DETECTION_BUFFER_SIZE, f32>,
     pub model_unlock_word: String,
 }
@@ -29,13 +31,10 @@ impl Model for OwwModel {
     }
 
     fn detect(&mut self, chunk: Vec<f32>) -> Option<Detection> {
-        // let chunk_f32 = chunk.to_vec().iter().map(|x| *x as f32).collect::<Vec<f32>>();
         Some(self.detection(chunk))
     }
 
     fn detect_i16(&mut self, _data: Vec<i16>) -> Option<Detection> {
         None
     }
-
-
 }
