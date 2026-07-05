@@ -17,7 +17,7 @@ use tract_core::model::IntoRunnable;
 use tract_core::prelude::{Framework, TValue};
 use tract_onnx::prelude::{InferenceModelExt, IntoTensor, Tensor as TractTensor, tvec};
 
-const MIN_POSITIVE_DETECTIONS: f32 = 3.0;
+const MIN_POSITIVE_DETECTIONS: f32 = 2.0;
 const NO_DETECTION_MS: u32 = 2_000;
 
 #[derive(Embed)]
@@ -69,9 +69,13 @@ impl OwwModel {
         let average_detection_probability = self.calculate_average();
         let since_last_detection = self.last_detection_time.elapsed().as_millis();
 
-        // when detection is done and avg detection is still high. Anf not too often
-        if probability < 0.1 && average_detection_probability > self.threshold && since_last_detection > NO_DETECTION_MS as _ {
+        // Trigger when the smoothed average exceeds the threshold (rising-edge on average).
+        // This matches the Python openWakeWord approach and avoids requiring a probability
+        // drop below 0.1 (the old falling-edge), which often missed confident detections.
+        if average_detection_probability > self.threshold && since_last_detection > NO_DETECTION_MS as _ {
             self.last_detection_time = Instant::now();
+            // Clear the buffer so the same utterance cannot retrigger before the refractory ends.
+            self.detections_buffer.clear();
             return (true, average_detection_probability);
         }
         if average_detection_probability > 0.1 {
@@ -82,16 +86,19 @@ impl OwwModel {
 
     fn calculate_average(&self) -> f32 {
         let all_detections = self.detections_buffer.to_vec();
-        let mut detection_cumulative = 0.0;
-        let mut positive_count = 0.0;
+        let mut detection_cumulative = 0.0f32;
+        let mut positive_count = 0.0f32;
         for d in all_detections {
             if d > self.threshold {
                 positive_count += 1.0;
                 detection_cumulative += d;
             }
         }
+        if positive_count < MIN_POSITIVE_DETECTIONS {
+            return 0.0;
+        }
         let avg = detection_cumulative / positive_count;
-        if positive_count > MIN_POSITIVE_DETECTIONS && avg > self.threshold { avg } else { 0.0 }
+        if avg > self.threshold { avg } else { 0.0 }
     }
 
     pub fn new(model_type: SpeechUnlockType, threshold: f32) -> Result<OwwModel, String> {
