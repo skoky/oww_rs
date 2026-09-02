@@ -22,7 +22,7 @@ hound = "3.5"
 log = "0.4"
 nnnoiseless = "0.5"
 rubato = { version = "3.0", features = ["fft_resampler"] }
-rust-embed = "8.5"
+rust-embed = "8.12"
 tokio = "1"
 tokio-util = "0"
 tract-core = "0.23"
