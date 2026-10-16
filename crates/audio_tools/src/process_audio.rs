@@ -11,9 +11,12 @@ pub fn resample_into_chunks(input: &[f32], buffer: &Arc<Mutex<Vec<f32>>>, channe
     data_buffer.extend(input);
 
     let mut chunks = vec![];
-    let chunk_len = resamplers.chunk_for_resampling * channels;
-
-    while data_buffer.len() >= chunk_len {
+    // Re-read every block: the resampler's input block size can change after each call.
+    loop {
+        let chunk_len = resamplers.chunk_for_resampling * channels;
+        if data_buffer.len() < chunk_len {
+            break;
+        }
         let resampled_data = if resamplers.resample_rate != 1.0 {
             resample_audio(&data_buffer[..chunk_len], resamplers, channels).expect("resampling error")
         } else {
@@ -78,5 +81,33 @@ pub fn interlace_stereo(channels: ChannelsData) -> Vec<f32> {
         interlaced
     } else {
         panic!("Unsupported number of channels: {}", channels.iter().len());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resample_into_chunks;
+    use crate::resampler::make_resampler;
+    use std::sync::{Arc, Mutex};
+
+    /// Mic callbacks of an arbitrary size at awkward rates must keep producing whole model chunks.
+    #[test]
+    fn test_streaming_low_rates() {
+        for (rate, channels) in [(5512, 1), (11025, 1), (11025, 2), (44100, 2)] {
+            let mut resamplers = make_resampler(rate, 1600, channels).unwrap();
+            let buffer = Arc::new(Mutex::new(vec![]));
+            let mut chunks = 0;
+            let callbacks = rate as usize * 2 / 480;
+            for _ in 0..callbacks {
+                let data = vec![0.1_f32; 480 * channels];
+                for chunk in resample_into_chunks(&data, &buffer, channels, &mut resamplers) {
+                    assert_eq!(chunk.data_f32.first().len(), 1600);
+                    chunks += 1;
+                }
+            }
+            // ~2 s of input; a partial block may still sit in the buffer.
+            let expected = callbacks * 480 * 16000 / rate as usize / 1600;
+            assert!((expected - 1..=expected).contains(&chunks), "{rate} Hz x{channels}: {chunks} chunks, expected {expected}");
+        }
     }
 }
